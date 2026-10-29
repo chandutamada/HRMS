@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+**/coverage/
+
+# Next.js & Build outputs
+.next/
+**/.next/
+out/
+**/out/
+build/
+**/build/
+dist/
+**/dist/
+target/
+**/target/
+*.tsbuildinfo
+
+# Flutter / Android
+.dart_tool/
+**/.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+android/app/build/
+**/android/app/build/
+android/.gradle/
+**/.gradle/
+*.iml
+.idea/
+**/.idea/
+
+# Keystores & Android Signing & Firebase Secrets
+*.jks
+*.keystore
+google-services.json
+**/google-services.json
+key.properties
+**/key.properties
+
+# Environment files (Ensure secrets are ignored but example templates are tracked)
+.env*
+!.env*.example
+!.env.example
+!.env.production.example
+
+# Database
+prisma/*.db
+prisma/*.db-journal
+*.sqlite
+*.sqlite3
+
+# Uploads and temporary files
+uploads/
+**/uploads/
+storage/
+temp/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db

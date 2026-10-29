@@ -1,0 +1,25 @@
+{
+  "name": "@hrms/database",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "db:generate": "npx.cmd prisma generate",
+    "db:push": "npx.cmd prisma db push",
+    "db:migrate": "npx.cmd prisma migrate dev",
+    "db:seed": "npx.cmd ts-node prisma/seed.ts",
+    "db:studio": "npx.cmd prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.4.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "@types/node": "^22.13.4",
+    "bcrypt": "^5.1.1",
+    "@types/bcrypt": "^5.0.2"
+  }
+}

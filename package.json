@@ -1,0 +1,14 @@
+{
+  "name": "hrms-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HRMS Root Workspace Runner",
+  "scripts": {
+    "web:dev": "npm.cmd --prefix Web_App run web:dev",
+    "web:build": "npm.cmd --prefix Web_App run web:build",
+    "api:dev": "npm.cmd --prefix Web_App run api:dev",
+    "api:build": "npm.cmd --prefix Web_App run api:build",
+    "db:generate": "npm.cmd --prefix Web_App run db:generate",
+    "db:seed": "npm.cmd --prefix Web_App run db:seed"
+  }
+}

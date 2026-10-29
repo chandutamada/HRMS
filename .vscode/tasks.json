@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Full HRMS (API + Webpage)",
+      "dependsOn": ["Start NestJS Backend (4000)", "Start Next.js Webpage (3000)"],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Start NestJS Backend (4000)",
+      "type": "shell",
+      "command": "npm run api:dev",
+      "options": {
+        "cwd": "${workspaceFolder}/Web_App"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Start Next.js Webpage (3000)",
+      "type": "shell",
+      "command": "npm run web:dev",
+      "options": {
+        "cwd": "${workspaceFolder}/Web_App"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}

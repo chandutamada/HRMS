@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+**/coverage/
+
+# Next.js & Build outputs
+.next/
+**/.next/
+out/
+**/out/
+build/
+**/build/
+dist/
+**/dist/
+target/
+**/target/
+*.tsbuildinfo
+
+# Flutter / Android
+.dart_tool/
+**/.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+android/app/build/
+android/.gradle/
+*.iml
+.idea/
+
+# Environment files
+.env*
+!.env*.example
+!.env.example
+!.env.production.example
+
+# Keystores & Android Signing & Firebase Secrets
+*.jks
+*.keystore
+google-services.json
+key.properties
+
+# Database
+prisma/*.db
+prisma/*.db-journal
+
+# Uploads and temporary files
+uploads/
+**/uploads/
+storage/
+temp/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
