@@ -5,12 +5,12 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "db:generate": "npx.cmd prisma generate",
-    "db:push": "npx.cmd prisma db push",
-    "db:migrate": "npx.cmd prisma migrate dev",
-    "db:seed": "npx.cmd ts-node prisma/seed.ts",
-    "db:seed:gtids": "npx.cmd ts-node prisma/seed-gtids-gtib.ts",
-    "db:studio": "npx.cmd prisma studio"
+    "db:generate": "npx prisma generate",
+    "db:push": "npx prisma db push",
+    "db:migrate": "npx prisma migrate dev",
+    "db:seed": "npx ts-node prisma/seed.ts",
+    "db:seed:gtids": "npx ts-node prisma/seed-gtids-gtib.ts",
+    "db:studio": "npx prisma studio"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1"
