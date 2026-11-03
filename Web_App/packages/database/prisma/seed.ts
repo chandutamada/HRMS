@@ -190,16 +190,16 @@ async function main() {
   const generalShift = await prisma.shift.create({
     data: {
       companyId: company.id,
-      name: 'General Day Shift',
+      name: 'General Day Schedule',
       code: 'GS-01',
       startTime: '09:00',
-      endTime: '18:00',
+      endTime: '17:30',
       lunchStartTime: '13:00',
       lunchEndTime: '14:00',
       gracePeriodMinutes: 30,
       lateExceptionMaxMinutes: 60,
-      netWorkSpanMinutes: 480,
-      totalSpanMinutes: 540,
+      netWorkSpanMinutes: 450,
+      totalSpanMinutes: 510,
       isDefault: true,
     },
   });
@@ -324,6 +324,10 @@ async function main() {
   });
 
   console.log('✓ HR Administrator user & SB-001 employee created: hr@gramtarang.org');
+
+  // 11. Seed GTIDS and GTIB Organizations & Separate Tenant Data
+  const { seedGtidsAndGtib } = await import('./seed-gtids-gtib');
+  await seedGtidsAndGtib();
 
   console.log('========================================================');
   console.log('✅ DATABASE INITIALIZATION COMPLETE FOR REAL ORGANIZATION!');

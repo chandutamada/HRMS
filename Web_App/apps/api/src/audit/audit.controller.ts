@@ -9,7 +9,7 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 @ApiTags('Audit Logs')
 @Controller('audit-logs')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN', 'HR_ADMIN')
+@Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
 @ApiBearerAuth()
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}

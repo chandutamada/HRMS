@@ -25,9 +25,10 @@ export class LeaveService {
   ) {}
 
   async getLeaveTypes(user: AuthenticatedUser, companyIdQuery?: string) {
-    const targetCompanyId = user.isSuperAdmin
-      ? companyIdQuery || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      companyIdQuery ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const where: any = { isActive: true };
     if (targetCompanyId) {
@@ -41,9 +42,10 @@ export class LeaveService {
   }
 
   async createLeaveType(dto: CreateLeaveTypeDto, user: AuthenticatedUser) {
-    const targetCompanyId = user.isSuperAdmin
-      ? dto.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      dto.companyId ||
+      user.activeCompanyId ||
+      user.companyId;
 
     if (!targetCompanyId) {
       throw new BadRequestException('Company ID is required');
@@ -350,9 +352,10 @@ export class LeaveService {
     user: AuthenticatedUser,
     params: { companyId?: string; status?: LeaveStatus },
   ) {
-    const targetCompanyId = user.isSuperAdmin
-      ? params.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      params.companyId ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const where: any = {};
     if (targetCompanyId) {

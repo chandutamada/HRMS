@@ -41,8 +41,10 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString('custom_base_url');
-      if (saved != null && saved.isNotEmpty) {
+      if (saved != null && saved.isNotEmpty && !saved.contains('hrms.superbeeaeronautics.com')) {
         dio.options.baseUrl = saved;
+      } else {
+        dio.options.baseUrl = ApiConstants.baseUrl;
       }
     } catch (_) {}
   }

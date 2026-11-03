@@ -180,7 +180,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Monitored strictly within Superbee office shift. Logged for: $employeeName',
+                      'Monitored strictly within office hours (09:00 AM – 05:30 PM). Logged for: $employeeName',
                       style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                     ),
                   ],

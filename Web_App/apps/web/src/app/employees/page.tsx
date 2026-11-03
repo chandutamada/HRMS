@@ -59,7 +59,27 @@ export default function EmployeesPage() {
   const [fEmail, setFEmail] = useState('');
   const [fPhone, setFPhone] = useState('');
   const [fJoining, setFJoining] = useState(new Date().toISOString().split('T')[0]);
+  const [fPassword, setFPassword] = useState('');
+  const [showFPassword, setShowFPassword] = useState(false);
   const [addError, setAddError] = useState('');
+
+  // Password reset & generation state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmp, setResetEmp] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [credentialsAlert, setCredentialsAlert] = useState<{
+    name: string;
+    code: string;
+    email: string;
+    password: string;
+  } | null>(null);
+
+  const generatePassword = (seed?: string) => {
+    const cleanSeed = (seed || 'Emp').replace(/[^a-zA-Z0-9]/g, '').slice(0, 5) || 'Emp';
+    const randDigits = Math.floor(1000 + Math.random() * 9000);
+    return `${cleanSeed}@${randDigits}`;
+  };
 
   // Edit Employee Form State
   const [editingEmp, setEditingEmp] = useState<any | null>(null);
@@ -78,14 +98,15 @@ export default function EmployeesPage() {
   const [editShiftId, setEditShiftId] = useState('');
   const [editJoining, setEditJoining] = useState('');
   const [editError, setEditError] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [faceMsg, setFaceMsg] = useState('Upload a clear frontal photo to enable facial attendance.');
 
   // Shift Form State
   const [shiftId, setShiftId] = useState('');
   const [shiftName, setShiftName] = useState('');
   const [shiftStart, setShiftStart] = useState('09:00');
-  const [shiftEnd, setShiftEnd] = useState('18:00');
-  const [shiftGrace, setShiftGrace] = useState('15');
+  const [shiftEnd, setShiftEnd] = useState('17:30');
+  const [shiftGrace, setShiftGrace] = useState('30');
   const [shiftMinHrs, setShiftMinHrs] = useState('4');
 
   // Excel Upload State
@@ -99,8 +120,13 @@ export default function EmployeesPage() {
     setIsLoading(true);
     try {
       const [empRes, shiftRes] = await Promise.all([
-        api.get<{ items: any[] }>('/employees', { limit: 200 }),
-        api.get<any[]>('/shifts').catch(() => []),
+        api.get<{ items: any[] }>('/employees', {
+          limit: 200,
+          companyId: activeCompany?.id || undefined,
+        }),
+        api.get<any[]>('/shifts', {
+          companyId: activeCompany?.id || undefined,
+        }).catch(() => []),
       ]);
 
       setEmployees(empRes.items || []);
@@ -120,8 +146,8 @@ export default function EmployeesPage() {
   const activeCount = employees.filter((e) => e.employmentStatus !== 'TERMINATED').length;
   const inactiveCount = employees.filter((e) => e.employmentStatus === 'TERMINATED').length;
   const bioCount = employees.filter((e) => (e.workLocationType === 'ON_SITE') && e.employmentStatus !== 'TERMINATED').length;
-  const gpsCount = employees.filter((e) => (e.workLocationType === 'REMOTE') && e.employmentStatus !== 'TERMINATED').length;
-  const bothCount = employees.filter((e) => (e.workLocationType === 'HYBRID' || !e.workLocationType) && e.employmentStatus !== 'TERMINATED').length;
+  const gpsCount = employees.filter((e) => (e.workLocationType === 'OFF_SITE' || e.workLocationType === 'REMOTE') && e.employmentStatus !== 'TERMINATED').length;
+  const bothCount = employees.filter((e) => e.employmentStatus !== 'TERMINATED' && e.workLocationType !== 'ON_SITE' && e.workLocationType !== 'OFF_SITE' && e.workLocationType !== 'REMOTE').length;
 
   const filteredEmployees = employees.filter((e) => {
     const q = search.toLowerCase();
@@ -131,7 +157,7 @@ export default function EmployeesPage() {
 
     let attType = 'both';
     if (e.workLocationType === 'ON_SITE') attType = 'biometric';
-    else if (e.workLocationType === 'REMOTE') attType = 'gps';
+    else if (e.workLocationType === 'OFF_SITE' || e.workLocationType === 'REMOTE') attType = 'gps';
 
     const matchesType = !filterType || attType === filterType;
 
@@ -198,14 +224,31 @@ export default function EmployeesPage() {
     }
   };
 
-  // Reset Password
-  const handleResetPassword = async (id: string, code: string) => {
-    if (!confirm(`Reset password for ${code} to their employee code?`)) return;
+  // Reset Password Modal
+  const openResetModal = (emp: any) => {
+    setResetEmp(emp);
+    setNewPassword(generatePassword(emp.employeeCode));
+    setShowResetModal(true);
+  };
+
+  const handleSaveNewPassword = async () => {
+    if (!resetEmp || !newPassword.trim()) {
+      alert('Please enter or generate a password');
+      return;
+    }
     try {
-      const res: any = await api.post(`/employees/${id}/reset-password`, {});
-      alert(res.message || 'Password reset successfully.');
+      await api.post(`/employees/${resetEmp.id}/reset-password`, {
+        password: newPassword.trim(),
+      });
+      setShowResetModal(false);
+      setCredentialsAlert({
+        name: `${resetEmp.firstName} ${resetEmp.lastName}`,
+        code: resetEmp.employeeCode,
+        email: resetEmp.email,
+        password: newPassword.trim(),
+      });
     } catch (err: any) {
-      alert(err.message || 'Failed to reset password');
+      alert(err.message || 'Failed to update password');
     }
   };
 
@@ -248,28 +291,41 @@ export default function EmployeesPage() {
       return;
     }
 
-    const parts = fName.trim().split(' ');
+    const parts = fName.trim().split(/\s+/);
     const firstName = parts[0];
-    const lastName = parts.slice(1).join(' ') || ' ';
+    const lastName = parts.slice(1).join(' ') || '.';
+    const assignedPassword = fPassword.trim() || generatePassword(fCode);
 
     try {
       await api.post('/employees', {
+        companyId: activeCompany?.id,
         employeeCode: fCode.trim(),
         firstName,
         lastName,
         email: fEmail.trim() || `${fCode.toLowerCase()}@gramtarang.org`,
         phone: fPhone.trim() || undefined,
-        designationId: undefined,
+        designationTitle: fDesig.trim() || undefined,
+        deviceUserId: fDevId.trim() || undefined,
         joiningDate: fJoining,
-        workLocationType: fAttType === 'gps' ? 'REMOTE' : fAttType === 'biometric' ? 'ON_SITE' : 'HYBRID',
+        workLocationType: fAttType === 'gps' ? 'OFF_SITE' : 'ON_SITE',
+        password: assignedPassword,
       });
 
       setShowAddModal(false);
+      setCredentialsAlert({
+        name: fName.trim(),
+        code: fCode.trim(),
+        email: fEmail.trim() || `${fCode.toLowerCase()}@gramtarang.org`,
+        password: assignedPassword,
+      });
+
       setFName('');
       setFCode('');
       setFDevId('');
       setFEmail('');
       setFPhone('');
+      setFDesig('');
+      setFPassword('');
       setAddError('');
       fetchEmployees();
     } catch (err: any) {
@@ -280,12 +336,13 @@ export default function EmployeesPage() {
   // Open Edit Employee
   const openEditModal = (emp: any) => {
     setEditingEmp(emp);
-    setEditName(`${emp.firstName} ${emp.lastName}`.trim());
+    setEditError('');
+    setEditName(`${emp.firstName || ''} ${emp.lastName || ''}`.trim());
     setEditCode(emp.employeeCode || '');
     setEditDevId(emp.employeeCode || '');
     setEditDesig(emp.designation?.title || '');
-    setEditAttType(emp.workLocationType === 'REMOTE' ? 'gps' : emp.workLocationType === 'ON_SITE' ? 'biometric' : 'both');
-    setEditWorkMode(emp.workLocationType === 'REMOTE' ? 'wfh' : 'office');
+    setEditAttType(emp.workLocationType === 'OFF_SITE' || emp.workLocationType === 'REMOTE' ? 'gps' : 'biometric');
+    setEditWorkMode(emp.workLocationType === 'OFF_SITE' || emp.workLocationType === 'REMOTE' ? 'wfh' : 'office');
     setEditJoining(emp.joiningDate ? emp.joiningDate.split('T')[0] : '');
     setEditShiftId(emp.shiftId || '');
     setShowEditModal(true);
@@ -295,24 +352,36 @@ export default function EmployeesPage() {
     e.preventDefault();
     if (!editingEmp) return;
 
-    const parts = editName.trim().split(' ');
-    const firstName = parts[0];
-    const lastName = parts.slice(1).join(' ') || ' ';
+    setIsSavingEdit(true);
+    setEditError('');
 
     try {
-      await api.put(`/employees/${editingEmp.id}`, {
+      const parts = editName.trim().split(/\s+/);
+      const firstName = parts[0] || editName.trim() || 'Employee';
+      const lastName = parts.length > 1 ? parts.slice(1).join(' ') : (editingEmp.lastName && editingEmp.lastName !== '-' ? editingEmp.lastName : '-');
+
+      const finalCode = (editCode || editDevId || editingEmp.employeeCode || '').trim();
+
+      const payload: any = {
         firstName,
         lastName,
-        employeeCode: editCode.trim(),
-        phone: editingEmp.phone,
-        shiftId: editShiftId || undefined,
-        workLocationType: editAttType === 'gps' ? 'REMOTE' : editAttType === 'biometric' ? 'ON_SITE' : 'HYBRID',
-      });
+        employeeCode: finalCode,
+        phone: editingEmp.phone || undefined,
+        shiftId: editShiftId || null,
+        designationTitle: editDesig.trim() || undefined,
+        workLocationType: editAttType === 'gps' ? 'OFF_SITE' : 'ON_SITE',
+      };
+
+      await api.put(`/employees/${editingEmp.id}`, payload);
 
       setShowEditModal(false);
-      fetchEmployees();
+      await fetchEmployees();
+      alert('✓ Employee details updated successfully!');
     } catch (err: any) {
+      console.error('Failed to update employee:', err);
       setEditError(err.message || 'Failed to save changes.');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -437,7 +506,7 @@ export default function EmployeesPage() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition shadow-sm"
           >
             <Clock className="h-3.5 w-3.5 text-slate-500" />
-            <span>Manage Shifts</span>
+            <span>Working Hours (09:00 AM - 05:30 PM)</span>
           </button>
 
           <button
@@ -531,7 +600,7 @@ export default function EmployeesPage() {
             onChange={(e) => setBulkShiftId(e.target.value)}
             className="px-2 py-1 rounded-lg border border-indigo-200 bg-white text-slate-800 text-xs"
           >
-            <option value="">— No shift (unassign) —</option>
+            <option value="">— Standard Hours (09:00 AM – 05:30 PM) —</option>
             {shifts.map((s) => (
               <option key={s.id} value={s.id}>{s.name} ({s.startTime} – {s.endTime})</option>
             ))}
@@ -588,14 +657,14 @@ export default function EmployeesPage() {
                 filteredEmployees.map((emp, idx) => {
                   const isChecked = selectedIds.includes(emp.id);
                   const isActive = emp.employmentStatus !== 'TERMINATED';
-                  let attBadgeClass = 'bg-purple-50 text-purple-700 border-purple-200';
-                  let attBadgeLabel = 'Both';
+                  let attBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200';
+                  let attBadgeLabel = 'Office';
                   if (emp.workLocationType === 'ON_SITE') {
                     attBadgeClass = 'bg-blue-50 text-blue-700 border-blue-200';
                     attBadgeLabel = 'Biometric';
-                  } else if (emp.workLocationType === 'REMOTE') {
+                  } else if (emp.workLocationType === 'OFF_SITE' || emp.workLocationType === 'REMOTE') {
                     attBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                    attBadgeLabel = 'GPS';
+                    attBadgeLabel = 'GPS / Field';
                   }
 
                   return (
@@ -655,10 +724,11 @@ export default function EmployeesPage() {
                             Sync
                           </button>
                           <button
-                            onClick={() => handleResetPassword(emp.id, emp.employeeCode)}
-                            className="px-2 py-1 text-[11px] font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                            onClick={() => openResetModal(emp)}
+                            className="px-2 py-1 text-[11px] font-semibold text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50"
+                            title="Generate or reset login password for this employee"
                           >
-                            Reset PW
+                            Password
                           </button>
                           <button
                             onClick={() => handleToggleActive(emp.id, `${emp.firstName} ${emp.lastName}`)}
@@ -791,6 +861,41 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
+              {/* Login Password Configuration */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block font-semibold text-slate-800">
+                    Employee Login Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setFPassword(generatePassword(fCode || fName))}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 underline"
+                  >
+                    ⚡ Auto-Generate Password
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showFPassword ? 'text' : 'password'}
+                    placeholder="Auto-generate or enter custom password"
+                    value={fPassword}
+                    onChange={(e) => setFPassword(e.target.value)}
+                    className="w-full p-2.5 pr-16 rounded-xl border border-slate-200 font-mono text-xs bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowFPassword(!showFPassword)}
+                    className="absolute right-2.5 top-2.5 text-xs text-slate-500 hover:text-slate-800 font-medium"
+                  >
+                    {showFPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  The employee will login using their <strong>Email</strong> or <strong>Employee Code / Device ID</strong> as username, and this password.
+                </p>
+              </div>
+
               {addError && <p className="text-red-600 text-xs font-semibold">{addError}</p>}
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
@@ -841,7 +946,10 @@ export default function EmployeesPage() {
                   <input
                     type="text"
                     value={editCode}
-                    onChange={(e) => setEditCode(e.target.value)}
+                    onChange={(e) => {
+                      setEditCode(e.target.value);
+                      if (editDevId === editCode) setEditDevId(e.target.value);
+                    }}
                     className="w-full p-2 rounded-xl border border-slate-200 font-mono"
                   />
                 </div>
@@ -850,7 +958,10 @@ export default function EmployeesPage() {
                   <input
                     type="text"
                     value={editDevId}
-                    onChange={(e) => setEditDevId(e.target.value)}
+                    onChange={(e) => {
+                      setEditDevId(e.target.value);
+                      if (editCode === editDevId) setEditCode(e.target.value);
+                    }}
                     className="w-full p-2 rounded-xl border border-slate-200 font-mono"
                   />
                 </div>
@@ -876,7 +987,7 @@ export default function EmployeesPage() {
                     onChange={(e) => setEditShiftId(e.target.value)}
                     className="w-full p-2 rounded-xl border border-slate-200"
                   >
-                    <option value="">— Default Shift —</option>
+                    <option value="">— Standard Hours (09:00 AM – 05:30 PM) —</option>
                     {shifts.map((s) => (
                       <option key={s.id} value={s.id}>{s.name} ({s.startTime}–{s.endTime})</option>
                     ))}
@@ -896,14 +1007,28 @@ export default function EmployeesPage() {
                 <p className="text-[11px] text-purple-700">{faceMsg}</p>
               </div>
 
-              {editError && <p className="text-red-600 text-xs font-semibold">{editError}</p>}
+              {editError && (
+                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+                  <span>{editError}</span>
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl">
+                <button
+                  type="button"
+                  disabled={isSavingEdit}
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl disabled:opacity-50"
+                >
                   Cancel
                 </button>
-                <button type="submit" className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-500 shadow-sm">
-                  Save Changes
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-500 shadow-sm disabled:opacity-50 inline-flex items-center gap-1.5"
+                >
+                  {isSavingEdit ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
@@ -916,26 +1041,27 @@ export default function EmployeesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-indigo-600" />
-                <span>Shift Timings</span>
-              </h3>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-indigo-600" />
+                  <span>Standard Working Hours (09:00 AM – 05:30 PM)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Applicable across all 3 companies (Superbee Aeronautics, GTIDS, GTIB). Standard fixed hours with no rotational shifts.
+                </p>
+              </div>
               <button onClick={() => setShowShiftsModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-500 mb-3">
-              Define working windows. A shift sets the expected in/out time used for late, early-exit and working hours.
-            </p>
-
             <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                   <tr>
-                    <th className="p-2.5">Name</th>
-                    <th className="p-2.5">Start</th>
-                    <th className="p-2.5">End</th>
+                    <th className="p-2.5">Schedule Name</th>
+                    <th className="p-2.5">Start Time</th>
+                    <th className="p-2.5">End Time</th>
                     <th className="p-2.5">Grace (min)</th>
                     <th className="p-2.5 text-right">Actions</th>
                   </tr>
@@ -946,7 +1072,7 @@ export default function EmployeesPage() {
                       <td className="p-2.5 font-semibold text-slate-800">{s.name}</td>
                       <td className="p-2.5 text-slate-600">{s.startTime}</td>
                       <td className="p-2.5 text-slate-600">{s.endTime}</td>
-                      <td className="p-2.5 text-slate-600">{s.gracePeriodMinutes || 15}</td>
+                      <td className="p-2.5 text-slate-600">{s.gracePeriodMinutes || 30}</td>
                       <td className="p-2.5 text-right">
                         <button
                           onClick={() => {
@@ -954,7 +1080,7 @@ export default function EmployeesPage() {
                             setShiftName(s.name);
                             setShiftStart(s.startTime);
                             setShiftEnd(s.endTime);
-                            setShiftGrace(String(s.gracePeriodMinutes || 15));
+                            setShiftGrace(String(s.gracePeriodMinutes || 30));
                           }}
                           className="text-blue-600 hover:underline font-semibold"
                         >
@@ -967,11 +1093,11 @@ export default function EmployeesPage() {
               </table>
             </div>
 
-            <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">ADD / EDIT SHIFT</h4>
+            <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">UPDATE WORKING HOURS SCHEDULE</h4>
             <div className="grid grid-cols-4 gap-2 text-xs">
               <div>
                 <label className="block text-[11px] text-slate-500 mb-1">Name</label>
-                <input type="text" placeholder="General Day" value={shiftName} onChange={(e) => setShiftName(e.target.value)} className="w-full p-2 border rounded-xl" />
+                <input type="text" placeholder="General Day (09:00 - 17:30)" value={shiftName} onChange={(e) => setShiftName(e.target.value)} className="w-full p-2 border rounded-xl" />
               </div>
               <div>
                 <label className="block text-[11px] text-slate-500 mb-1">Start Time</label>
@@ -994,18 +1120,19 @@ export default function EmployeesPage() {
                   setShiftId('');
                   setShiftName('');
                   setShiftStart('09:00');
-                  setShiftEnd('18:00');
+                  setShiftEnd('17:30');
+                  setShiftGrace('30');
                 }}
                 className="text-xs text-blue-600 hover:underline font-medium"
               >
-                + New shift (clear form)
+                Reset to Standard (09:00 – 17:30)
               </button>
               <button
                 type="button"
                 onClick={handleSaveShift}
                 className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-500 shadow-sm"
               >
-                Save Shift
+                Save Schedule
               </button>
             </div>
           </div>
@@ -1107,6 +1234,148 @@ export default function EmployeesPage() {
               </button>
               <button onClick={() => { alert('Biometric IDs mapped successfully.'); setShowDeviceMapModal(false); }} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl text-xs hover:bg-blue-500">
                 Apply Mappings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Set / Reset Employee Password */}
+      {showResetModal && resetEmp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Key className="h-5 w-5 text-indigo-600" />
+                <span>Generate / Update Password</span>
+              </h3>
+              <button onClick={() => setShowResetModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="text-xs space-y-3">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                <p className="text-slate-700"><strong>Employee:</strong> {resetEmp.firstName} {resetEmp.lastName}</p>
+                <p className="text-slate-700"><strong>Employee Code / Device ID:</strong> <span className="font-mono font-bold text-indigo-700">{resetEmp.employeeCode}</span></p>
+                <p className="text-slate-700"><strong>Registered Email:</strong> <span className="font-mono text-slate-600">{resetEmp.email}</span></p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-700">New Password</label>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setNewPassword(generatePassword(resetEmp.employeeCode))}
+                      className="text-blue-600 hover:text-blue-800 font-semibold underline"
+                    >
+                      ⚡ Auto-Generate
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setNewPassword(resetEmp.employeeCode)}
+                      className="text-slate-600 hover:text-slate-800 font-medium underline"
+                    >
+                      Use Emp Code
+                    </button>
+                  </div>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter or generate password"
+                    className="w-full p-2.5 pr-16 rounded-xl border border-slate-200 font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-2.5 top-2.5 text-xs text-slate-500 hover:text-slate-800 font-medium"
+                  >
+                    {showNewPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  HR generates the password here. The employee will use this password to sign into the mobile and web app.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveNewPassword}
+                  className="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-500 shadow-sm"
+                >
+                  Save & Update Password
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Credentials Ready Banner */}
+      {credentialsAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100 mb-3">
+              <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                <CheckCircle className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Login Credentials Ready</h3>
+                <p className="text-xs text-slate-500">Provide these credentials to {credentialsAlert.name}</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 text-xs font-mono">
+              <div>
+                <span className="text-slate-500 text-[11px] block">Login Username (Employee Code / Device ID):</span>
+                <span className="font-bold text-slate-800 text-sm">{credentialsAlert.code}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[11px] block">Registered Email:</span>
+                <span className="font-semibold text-slate-700">{credentialsAlert.email}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 text-[11px] block">Password Generated by HR:</span>
+                <span className="font-bold text-indigo-700 text-sm tracking-wider">{credentialsAlert.password}</span>
+              </div>
+            </div>
+
+            <p className="mt-3 text-[11px] text-slate-500">
+              The employee can log in on the Web App or Android App using either their <strong>Employee Code</strong> or <strong>Email</strong> along with this password.
+            </p>
+
+            <div className="mt-4 flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `Superbee HRMS Login Credentials\nEmployee: ${credentialsAlert.name}\nUsername / Employee Code: ${credentialsAlert.code}\nEmail: ${credentialsAlert.email}\nPassword: ${credentialsAlert.password}`
+                  );
+                  alert('Credentials copied to clipboard!');
+                }}
+                className="px-4 py-2 bg-emerald-600 text-white font-semibold text-xs rounded-xl hover:bg-emerald-500 shadow-sm"
+              >
+                Copy Credentials
+              </button>
+              <button
+                type="button"
+                onClick={() => setCredentialsAlert(null)}
+                className="px-4 py-2 bg-slate-200 text-slate-800 font-semibold text-xs rounded-xl hover:bg-slate-300"
+              >
+                Close
               </button>
             </div>
           </div>

@@ -89,7 +89,7 @@ interface TrackingDashboardMapProps {
   onCloseSession?: () => void;
 }
 
-// Available Free Open-Source & High-Resolution Satellite Tile Layers
+// Available Free Open-Source & High-Resolution Satellite Tile Layers (100% Free / Zero Billing)
 const TILE_LAYERS = {
   osm: {
     name: 'OpenStreetMap (Standard)',
@@ -98,19 +98,19 @@ const TILE_LAYERS = {
     maxZoom: 19,
     subdomains: ['a', 'b', 'c'],
   },
-  hybrid: {
-    name: 'Satellite Hybrid (Aerial + Roads)',
-    url: 'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-    attribution: '&copy; Google Maps / DigitalGlobe Imagery',
-    maxZoom: 20,
-    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-  },
   satellite: {
-    name: 'Pure Satellite (Esri Imagery)',
+    name: 'Satellite (Esri World Imagery)',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Tiles &copy; Esri &mdash; Earthstar Geographics',
     maxZoom: 19,
     subdomains: [],
+  },
+  topo: {
+    name: 'Topographic (Terrain)',
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap',
+    maxZoom: 17,
+    subdomains: ['a', 'b', 'c'],
   },
   cartoLight: {
     name: 'CARTO Positron (Clean Light)',
@@ -160,7 +160,7 @@ export default function TrackingDashboardMap({
   }>>(new Map());
 
   // Component UI state
-  const [selectedTileStyle, setSelectedTileStyle] = useState<'osm' | 'hybrid' | 'satellite' | 'cartoLight' | 'cartoDark'>('osm');
+  const [selectedTileStyle, setSelectedTileStyle] = useState<keyof typeof TILE_LAYERS>('osm');
   const [activeTabFilter, setActiveTabFilter] = useState<'ALL' | 'ON_SITE' | 'OFF_SITE'>('ALL');
   const [showGeofence, setShowGeofence] = useState(true);
   const [showTimelineSidebar, setShowTimelineSidebar] = useState(true);
@@ -908,22 +908,22 @@ export default function TrackingDashboardMap({
               🗺️ Street
             </button>
             <button
-              onClick={() => setSelectedTileStyle('hybrid')}
-              title="Satellite Hybrid (Photographic Aerial + Streets & Landmarks)"
+              onClick={() => setSelectedTileStyle('satellite')}
+              title="Esri World Imagery (High-Resolution Satellite)"
               className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
-                selectedTileStyle === 'hybrid' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+                selectedTileStyle === 'satellite' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
-              🛰️ Satellite Hybrid
+              🛰️ Satellite (Esri)
             </button>
             <button
-              onClick={() => setSelectedTileStyle('satellite')}
-              title="Pure High-Resolution Satellite Imagery (Esri World Imagery)"
+              onClick={() => setSelectedTileStyle('topo')}
+              title="Topographic Terrain"
               className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
-                selectedTileStyle === 'satellite' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'
+                selectedTileStyle === 'topo' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
-              🌍 Satellite
+              ⛰️ Topo
             </button>
             <button
               onClick={() => setSelectedTileStyle('cartoLight')}
@@ -933,15 +933,6 @@ export default function TrackingDashboardMap({
               }`}
             >
               Light
-            </button>
-            <button
-              onClick={() => setSelectedTileStyle('cartoDark')}
-              title="CARTO Dark Matter"
-              className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
-                selectedTileStyle === 'cartoDark' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Dark
             </button>
           </div>
 

@@ -51,9 +51,10 @@ export class HelpdeskService {
       // Regular employee: only their own tickets
       where.employeeId = user.employeeId;
     } else {
-      const targetCompanyId = user.isSuperAdmin
-        ? companyIdQuery || user.companyId
-        : user.companyId;
+      const targetCompanyId =
+        companyIdQuery ||
+        user.activeCompanyId ||
+        (user.isSuperAdmin ? undefined : user.companyId);
       if (targetCompanyId) {
         where.companyId = targetCompanyId;
       }

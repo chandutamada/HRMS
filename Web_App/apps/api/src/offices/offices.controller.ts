@@ -44,14 +44,14 @@ export class OfficesController {
   }
 
   @Post()
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Create new office location with geofence radius' })
   create(@Body() dto: CreateOfficeDto, @CurrentUser() user: AuthenticatedUser) {
     return this.officesService.create(dto, user);
   }
 
   @Put(':id/geofence')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({
     summary:
       'Update office geofence location and radius (Mandatory reason required, creates audit log)',
@@ -65,7 +65,7 @@ export class OfficesController {
   }
 
   @Delete(':id')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Remove an office location and safely unlink assigned employees' })
   remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.officesService.remove(id, user);
@@ -88,7 +88,7 @@ export class OfficesController {
   }
 
   @Post(':id/assign-all')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({
     summary: 'Assign all employees to this office location',
   })

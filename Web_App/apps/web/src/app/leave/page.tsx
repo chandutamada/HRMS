@@ -133,13 +133,13 @@ export default function LeavePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Superbee Leave Management Desk</h1>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">{activeCompany?.name || 'Superbee'} Leave Management Desk</h1>
             <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-              MSME Unit
+              {activeCompany?.code || 'MSME Unit'}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Superbee Aeronautics Pvt. Ltd. • Official Leave Policy & Workflow Portal
+            {activeCompany?.name || 'Superbee Aeronautics Pvt. Ltd.'} • Official Leave Policy & Workflow Portal
           </p>
         </div>
 
@@ -242,7 +242,7 @@ export default function LeavePage() {
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Leave Applications Registry</h3>
-                <p className="text-xs text-slate-500">Live feed of leave requests submitted across Superbee units</p>
+                <p className="text-xs text-slate-500">Live feed of leave requests submitted across {activeCompany?.code || 'company'} units</p>
               </div>
               <span className="text-xs font-semibold text-slate-600">Total: {applications.length} Records</span>
             </div>
@@ -373,7 +373,7 @@ export default function LeavePage() {
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 flex items-start gap-3">
             <Info className="w-5 h-5 text-emerald-700 flex-shrink-0 mt-0.5" />
             <div className="text-xs text-emerald-900 leading-relaxed">
-              <span className="font-bold">Superbee Aeronautics Pvt. Ltd. Leave Entitlement Matrix:</span> Below are the
+              <span className="font-bold">{activeCompany?.name || 'Superbee Aeronautics Pvt. Ltd.'} Leave Entitlement Matrix:</span> Below are the
               official 5 leave types standardized under the MSME Manufacturing Unit guidelines. All employees are bound
               by the advance notice requirements, probation rules, and sandwich leave conditions.
             </div>
@@ -593,7 +593,7 @@ export default function LeavePage() {
                   🐝
                 </div>
                 <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-wider uppercase">
-                  Superbee Aeronautics Pvt. Ltd.
+                  {activeCompany?.name || 'Superbee Aeronautics Pvt. Ltd.'}
                 </h2>
               </div>
               <p className="text-sm font-bold text-slate-700 uppercase tracking-widest">
@@ -770,7 +770,7 @@ export default function LeavePage() {
               <div>
                 <p className="font-bold text-slate-900">Authorized by:</p>
                 <p>HR Management Committee</p>
-                <p>Superbee Aeronautics Pvt. Ltd.</p>
+                <p>{activeCompany?.name || 'Superbee Aeronautics Pvt. Ltd.'}</p>
               </div>
               <div className="text-right">
                 <p className="font-bold text-slate-900">Effective Date:</p>

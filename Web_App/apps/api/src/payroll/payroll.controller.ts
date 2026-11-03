@@ -47,7 +47,7 @@ export class PayrollController {
   }
 
   @Post('bulk-upload')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Bulk populate and carry forward employee payroll details via uploaded Excel/CSV data' })
   bulkUpload(
     @Body() dto: BulkUploadPayrollDto,
@@ -57,7 +57,7 @@ export class PayrollController {
   }
 
   @Put('finalize-all')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Finalize all employee payslips for the month and publish official payslips' })
   finalizeAll(
     @Body() dto: FinalizeAllPayrollDto,
@@ -67,7 +67,7 @@ export class PayrollController {
   }
 
   @Post('process')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Calculate and process monthly attendance-linked payroll' })
   processPayroll(
     @Body() dto: ProcessPayrollDto,
@@ -97,7 +97,7 @@ export class PayrollController {
   }
 
   @Put('periods/:id/finalize')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Finalize payroll and notify employees of payslip availability' })
   finalize(
     @Param('id') id: string,
@@ -117,7 +117,7 @@ export class PayrollController {
   }
 
   @Put('records/:id/finalize')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Finalize an individual employee payslip record' })
   finalizeRecord(
     @Param('id') id: string,
@@ -127,7 +127,7 @@ export class PayrollController {
   }
 
   @Post('override')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({
     summary: 'Override an individual payroll line item (Requires reason, records audit)',
   })
@@ -159,7 +159,7 @@ export class PayrollController {
   }
 
   @Post('salary-structure')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Configure or update employee salary structure' })
   saveSalary(
     @Body() dto: CreateSalaryStructureDto,

@@ -39,7 +39,7 @@ export class LeaveController {
   }
 
   @Post('types')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Configure a new leave type' })
   createType(
     @Body() dto: CreateLeaveTypeDto,

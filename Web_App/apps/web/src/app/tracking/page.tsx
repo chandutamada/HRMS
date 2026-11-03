@@ -26,7 +26,7 @@ const GoogleMapsTimelineView = dynamic(
     loading: () => (
       <div className="h-[650px] w-full rounded-2xl bg-white border border-slate-200 flex flex-col items-center justify-center text-slate-400 gap-2">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#1a73e8] border-t-transparent" />
-        <span className="text-xs font-semibold">Loading Google Maps Timeline Engine...</span>
+        <span className="text-xs font-semibold">Loading Journey Timeline Engine...</span>
       </div>
     ),
   }
@@ -174,6 +174,7 @@ export default function TrackingPage() {
       const res = await api.get<LiveTrackingResponse>('/tracking/live', {
         search: searchQuery || undefined,
         type: selectedTypeFilter !== 'ALL' ? selectedTypeFilter : undefined,
+        companyId: activeCompany?.id || undefined,
       });
       setData(res);
       if (selectedEmployee) {
@@ -186,7 +187,7 @@ export default function TrackingPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [searchQuery, selectedTypeFilter, selectedEmployee]);
+  }, [searchQuery, selectedTypeFilter, selectedEmployee, activeCompany]);
 
   useEffect(() => {
     fetchTrackingData();
@@ -270,7 +271,7 @@ export default function TrackingPage() {
               Live Location & Field Operations Tracking
             </h1>
             <p className="mt-1 text-xs text-slate-300 max-w-2xl">
-              Real-time GPS geofence compliance for On-Site office staff (50m radius) and dynamic route breadcrumbs & stationary checkpoints for Off-Site drone field personnel.
+              Real-time GPS geofence compliance and dynamic route breadcrumbs • {activeCompany?.name || 'All Registered Companies'}
             </p>
           </div>
 
@@ -415,7 +416,7 @@ export default function TrackingPage() {
             }`}
           >
             <Navigation className="h-4 w-4" />
-            <span>Google Maps Timeline (Field Movement & History)</span>
+            <span>Field Journey Timeline (Movement & History)</span>
           </button>
 
           <button

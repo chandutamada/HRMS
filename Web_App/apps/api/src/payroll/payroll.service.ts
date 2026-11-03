@@ -33,9 +33,10 @@ export class PayrollService {
   constructor(private prisma: PrismaService) {}
 
   async processPayroll(dto: ProcessPayrollDto, user: AuthenticatedUser) {
-    const targetCompanyId = user.isSuperAdmin
-      ? dto.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      dto.companyId ||
+      user.activeCompanyId ||
+      user.companyId;
 
     if (!targetCompanyId) {
       throw new BadRequestException('Target Company ID is required');
@@ -197,9 +198,10 @@ export class PayrollService {
   }
 
   async getPayrollPeriods(user: AuthenticatedUser, companyIdQuery?: string) {
-    const targetCompanyId = user.isSuperAdmin
-      ? companyIdQuery || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      companyIdQuery ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const where: any = {};
     if (targetCompanyId) {
@@ -899,9 +901,10 @@ export class PayrollService {
     user: AuthenticatedUser,
     companyIdQuery?: string,
   ) {
-    const targetCompanyId = user.isSuperAdmin
-      ? companyIdQuery || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      companyIdQuery ||
+      user.activeCompanyId ||
+      user.companyId;
 
     if (!targetCompanyId) {
       throw new BadRequestException('Company ID is required');
@@ -1112,9 +1115,10 @@ export class PayrollService {
   }
 
   async bulkUploadPayroll(dto: BulkUploadPayrollDto, user: AuthenticatedUser) {
-    const targetCompanyId = user.isSuperAdmin
-      ? dto.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      dto.companyId ||
+      user.activeCompanyId ||
+      user.companyId;
 
     if (!targetCompanyId) {
       throw new BadRequestException('Target Company ID is required');
@@ -1316,9 +1320,10 @@ export class PayrollService {
   }
 
   async finalizeAllPayroll(dto: FinalizeAllPayrollDto, user: AuthenticatedUser) {
-    const targetCompanyId = user.isSuperAdmin
-      ? dto.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      dto.companyId ||
+      user.activeCompanyId ||
+      user.companyId;
 
     if (!targetCompanyId) {
       throw new BadRequestException('Target Company ID is required');
@@ -1515,9 +1520,10 @@ export class PayrollService {
     user: AuthenticatedUser,
     companyIdQuery?: string,
   ): Promise<Buffer> {
-    const targetCompanyId = user.isSuperAdmin
-      ? companyIdQuery || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      companyIdQuery ||
+      user.activeCompanyId ||
+      user.companyId;
 
     if (!targetCompanyId) {
       throw new BadRequestException('Company ID is required');

@@ -9,6 +9,7 @@
     "db:push": "npx.cmd prisma db push",
     "db:migrate": "npx.cmd prisma migrate dev",
     "db:seed": "npx.cmd ts-node prisma/seed.ts",
+    "db:seed:gtids": "npx.cmd ts-node prisma/seed-gtids-gtib.ts",
     "db:studio": "npx.cmd prisma studio"
   },
   "dependencies": {

@@ -533,6 +533,7 @@ export default function PayrollPage() {
         const net = s ? s.net_pay : 48000;
 
         setCurrentPayslip({
+          company_name: activeCompany?.name || emp.company?.name || 'Superbee Aeronautics Private Limited',
           employee_name: `${emp.firstName} ${emp.lastName}`.trim(),
           employee_code: emp.employeeCode,
           department_name: emp.department?.name || 'Aeronautical Engineering',
@@ -873,7 +874,7 @@ export default function PayrollPage() {
             <div className="max-w-2xl mx-auto rounded-3xl border border-slate-200 bg-white shadow-lg overflow-hidden">
               <div className="p-6 text-white flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6a 100%)' }}>
                 <div>
-                  <h3 className="text-lg font-bold">SUPERBEE AERONAUTICS PVT. LTD.</h3>
+                  <h3 className="text-lg font-bold">{(activeCompany?.name || currentPayslip?.company_name || 'Superbee Aeronautics Private Limited').toUpperCase()}</h3>
                   <p className="text-xs text-slate-300">
                     PAYSLIP FOR {MONTH_NAMES[currentPayslip.month].toUpperCase()} {currentPayslip.year}
                   </p>

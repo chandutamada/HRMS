@@ -18,25 +18,25 @@ interface GoogleGeofenceMapProps {
 
 const GEOFENCE_TILE_LAYERS = {
   osm: {
-    name: 'Street',
+    name: 'Street (OSM)',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19,
     subdomains: ['a', 'b', 'c'],
   },
-  hybrid: {
-    name: 'Satellite Hybrid',
-    url: 'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-    attribution: '&copy; Google Maps / DigitalGlobe Imagery',
-    maxZoom: 20,
-    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-  },
   satellite: {
-    name: 'Pure Satellite',
+    name: 'Satellite (Esri)',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Tiles &copy; Esri &mdash; Earthstar Geographics',
     maxZoom: 19,
     subdomains: [],
+  },
+  topo: {
+    name: 'Topographic',
+    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap',
+    maxZoom: 17,
+    subdomains: ['a', 'b', 'c'],
   },
   carto: {
     name: 'Clean Light',
@@ -67,7 +67,7 @@ export default function GoogleGeofenceMap({
   const [lng, setLng] = useState(initialLng);
   const [radius, setRadius] = useState(radiusMeters);
   const [address, setAddress] = useState<string>('Looking up address...');
-  const [mapStyle, setMapStyle] = useState<'osm' | 'hybrid' | 'satellite' | 'carto'>('osm');
+  const [mapStyle, setMapStyle] = useState<keyof typeof GEOFENCE_TILE_LAYERS>('osm');
 
   // Sync state when props change
   useEffect(() => {
@@ -245,23 +245,23 @@ export default function GoogleGeofenceMap({
             </button>
             <button
               type="button"
-              onClick={() => setMapStyle('hybrid')}
-              title="Satellite Hybrid (Aerial + Roads)"
+              onClick={() => setMapStyle('satellite')}
+              title="Esri World Imagery"
               className={`rounded-md px-2 py-1 text-[11px] font-medium transition ${
-                mapStyle === 'hybrid' ? 'bg-emerald-600 text-white shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'
+                mapStyle === 'satellite' ? 'bg-emerald-600 text-white shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              🛰️ Hybrid
+              🛰️ Satellite (Esri)
             </button>
             <button
               type="button"
-              onClick={() => setMapStyle('satellite')}
-              title="Pure Satellite Imagery"
+              onClick={() => setMapStyle('topo')}
+              title="Topographic Terrain"
               className={`rounded-md px-2 py-1 text-[11px] font-medium transition ${
-                mapStyle === 'satellite' ? 'bg-cyan-600 text-white shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'
+                mapStyle === 'topo' ? 'bg-cyan-600 text-white shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              🌍 Satellite
+              ⛰️ Topo
             </button>
             <button
               type="button"

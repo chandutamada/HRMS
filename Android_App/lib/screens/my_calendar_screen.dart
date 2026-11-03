@@ -795,7 +795,7 @@ class _MyCalendarScreenState extends State<MyCalendarScreen> {
             _buildDetailRow('First Punch In', punchInStr),
             _buildDetailRow('Last Punch Out', punchOutStr),
             _buildDetailRow('Total Work Hours', workHoursStr),
-            _buildDetailRow('Shift Timings', '09:00 AM – 05:30 PM (IST)'),
+            _buildDetailRow('Working Hours', '09:00 AM – 05:30 PM (IST)'),
             _buildDetailRow('Location', 'Superbee Aeronautics HQ (Bangalore 50m)'),
             const SizedBox(height: 20),
             SizedBox(

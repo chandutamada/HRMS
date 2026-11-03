@@ -146,10 +146,13 @@ export default function CalendarPage() {
 
         {selectedType === 'Office Timing' && (
           <div className="max-w-xl space-y-4">
-            <h3 className="text-sm font-bold text-slate-800">Standard Scheduled Office Working Hours</h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Standard Scheduled Office Working Hours</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Applicable to all 3 companies (Superbee Aeronautics, GTIDS, GTIB). Standard fixed schedule (no rotational shifts).</p>
+            </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-3 text-xs">
               <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-600 font-medium">Shift Start Time:</span>
+                <span className="text-slate-600 font-medium">Office Start Time:</span>
                 <strong className="text-slate-900 font-mono">09:00 AM IST</strong>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
@@ -157,7 +160,7 @@ export default function CalendarPage() {
                 <strong className="text-slate-900 font-mono">01:00 PM – 02:00 PM IST (1 Hour)</strong>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-600 font-medium">Shift End Time:</span>
+                <span className="text-slate-600 font-medium">Office End Time:</span>
                 <strong className="text-slate-900 font-mono">05:30 PM IST</strong>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-2">

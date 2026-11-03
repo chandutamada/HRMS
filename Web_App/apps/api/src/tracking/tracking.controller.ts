@@ -48,10 +48,12 @@ export class TrackingController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('type') type?: WorkLocationType,
     @Query('search') search?: string,
+    @Query('companyId') companyId?: string,
   ) {
     return this.trackingService.getAllLiveLocations(user, {
       workLocationType: type,
       search,
+      companyId: companyId || user.activeCompanyId || undefined,
     });
   }
 
@@ -179,8 +181,13 @@ export class LiveLocationCompatController {
   @Get('active')
   @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Get all active employee locations for HR live tracking' })
-  getActiveLocations(@CurrentUser() user: AuthenticatedUser) {
-    return this.trackingService.getAllLiveLocations(user);
+  getActiveLocations(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.trackingService.getAllLiveLocations(user, {
+      companyId: companyId || user.activeCompanyId || undefined,
+    });
   }
 }
 

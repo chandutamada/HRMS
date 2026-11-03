@@ -101,7 +101,7 @@ export class AttendanceController {
   }
 
   @Post('manual-override')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({
     summary:
       'Manual attendance entry or override by HR (Mandatory reason required, creates audit record)',
@@ -118,8 +118,9 @@ export class AttendanceController {
   getInOutReport(
     @Query('report_date') reportDate: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Query('companyId') companyId?: string,
   ) {
-    return this.attendanceService.getInOutReport(reportDate, user);
+    return this.attendanceService.getInOutReport(reportDate, user, companyId);
   }
 
   @Get('daily')
@@ -127,8 +128,9 @@ export class AttendanceController {
   getDailyReport(
     @Query('report_date') reportDate: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Query('companyId') companyId?: string,
   ) {
-    return this.attendanceService.getDailyReport(reportDate, user);
+    return this.attendanceService.getDailyReport(reportDate, user, companyId);
   }
 
   @Get('monthly')
@@ -137,9 +139,10 @@ export class AttendanceController {
     @Query('month') month: string,
     @Query('year') year: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Query('companyId') companyId?: string,
   ) {
     const m = month ? parseInt(month, 10) : new Date().getMonth() + 1;
     const y = year ? parseInt(year, 10) : new Date().getFullYear();
-    return this.attendanceService.getMonthlyReport(m, y, user);
+    return this.attendanceService.getMonthlyReport(m, y, user, companyId);
   }
 }

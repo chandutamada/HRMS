@@ -33,6 +33,37 @@ export interface Company {
   name: string;
 }
 
+export const KNOWN_COMPANIES: Company[] = [
+  {
+    id: 'SUPERBEE',
+    code: 'SUPERBEE',
+    name: 'Superbee Aeronautics Private Limited',
+  },
+  {
+    id: 'GTIDS',
+    code: 'GTIDS',
+    name: 'Gram Tarang Inclusive Development Services Private Limited',
+  },
+  {
+    id: 'GTIB',
+    code: 'GTIB',
+    name: 'Gram Tarang Insurance and Brokering Private Limited',
+  },
+];
+
+function mergeWithKnownCompanies(fetched: Company[]): Company[] {
+  const map = new Map<string, Company>();
+  (fetched || []).forEach((c) => {
+    if (c?.code) map.set(c.code.toUpperCase(), c);
+  });
+  KNOWN_COMPANIES.forEach((k) => {
+    if (!map.has(k.code.toUpperCase())) {
+      map.set(k.code.toUpperCase(), k);
+    }
+  });
+  return Array.from(map.values());
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -40,6 +71,7 @@ interface AuthContextType {
   companies: Company[];
   isLoading: boolean;
   login: (identifier: string, password: string) => Promise<void>;
+  loginWithGoogle: (email: string) => Promise<void>;
   logout: () => void;
   switchCompany: (company: Company | null) => void;
 }
@@ -73,13 +105,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Fetch authorized companies
         api.get<Company[]>('/companies').then((data) => {
-          setCompanies(data);
-          if (!savedActiveCompany && data.length > 0) {
-            setActiveCompany(data[0]);
-            localStorage.setItem('hrms_active_company', JSON.stringify(data[0]));
-            localStorage.setItem('hrms_active_company_id', data[0].id);
+          const merged = mergeWithKnownCompanies(data);
+          setCompanies(merged);
+          if (!savedActiveCompany && merged.length > 0) {
+            setActiveCompany(merged[0]);
+            localStorage.setItem('hrms_active_company', JSON.stringify(merged[0]));
+            localStorage.setItem('hrms_active_company_id', merged[0].id);
           }
-        }).catch(console.error);
+        }).catch(() => {
+          setCompanies(KNOWN_COMPANIES);
+          if (!savedActiveCompany) {
+            setActiveCompany(KNOWN_COMPANIES[0]);
+            localStorage.setItem('hrms_active_company', JSON.stringify(KNOWN_COMPANIES[0]));
+            localStorage.setItem('hrms_active_company_id', KNOWN_COMPANIES[0].id);
+          }
+        });
       } catch (e) {
         localStorage.clear();
       }
@@ -102,16 +142,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Fetch user companies
     const availableCompanies = await api.get<Company[]>('/companies').catch(() => []);
-    setCompanies(availableCompanies);
+    const merged = mergeWithKnownCompanies(availableCompanies);
+    setCompanies(merged);
 
     if (res.user.company) {
       setActiveCompany(res.user.company);
       localStorage.setItem('hrms_active_company', JSON.stringify(res.user.company));
       localStorage.setItem('hrms_active_company_id', res.user.company.id);
-    } else if (availableCompanies.length > 0) {
-      setActiveCompany(availableCompanies[0]);
-      localStorage.setItem('hrms_active_company', JSON.stringify(availableCompanies[0]));
-      localStorage.setItem('hrms_active_company_id', availableCompanies[0].id);
+    } else if (merged.length > 0) {
+      setActiveCompany(merged[0]);
+      localStorage.setItem('hrms_active_company', JSON.stringify(merged[0]));
+      localStorage.setItem('hrms_active_company_id', merged[0].id);
+    }
+
+    router.push('/dashboard');
+  };
+
+  const loginWithGoogle = async (email: string) => {
+    const res = await api.post<{ user: User; tokens: { accessToken: string; refreshToken: string } }>(
+      '/auth/google',
+      { email },
+    );
+
+    localStorage.setItem('hrms_token', res.tokens.accessToken);
+    localStorage.setItem('hrms_refresh_token', res.tokens.refreshToken);
+    localStorage.setItem('hrms_user', JSON.stringify(res.user));
+
+    setToken(res.tokens.accessToken);
+    setUser(res.user);
+
+    const availableCompanies = await api.get<Company[]>('/companies').catch(() => []);
+    const merged = mergeWithKnownCompanies(availableCompanies);
+    setCompanies(merged);
+
+    if (res.user.company) {
+      setActiveCompany(res.user.company);
+      localStorage.setItem('hrms_active_company', JSON.stringify(res.user.company));
+      localStorage.setItem('hrms_active_company_id', res.user.company.id);
+    } else if (merged.length > 0) {
+      setActiveCompany(merged[0]);
+      localStorage.setItem('hrms_active_company', JSON.stringify(merged[0]));
+      localStorage.setItem('hrms_active_company_id', merged[0].id);
     }
 
     router.push('/dashboard');
@@ -136,7 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('hrms_active_company_id', comp.id);
     } else {
       localStorage.removeItem('hrms_active_company');
-      localStorage.removeItem('hrms_active_company_id');
+      localStorage.setItem('hrms_active_company_id', 'ALL');
     }
   };
 
@@ -149,6 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         companies,
         isLoading,
         login,
+        loginWithGoogle,
         logout,
         switchCompany,
       }}

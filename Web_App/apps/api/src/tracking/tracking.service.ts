@@ -102,6 +102,31 @@ export class TrackingService {
     // 2. Validate office hours
     const isOfficeHours = this.isWithinOfficeHours(employee?.shift);
 
+    // 2b. For Field employees (OFF_SITE), tracking is active strictly from Punch-In until Punch-Out
+    if (employee && employee.workLocationType === 'OFF_SITE') {
+      const now = new Date();
+      const istDateString = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(now);
+      const today = new Date(`${istDateString}T00:00:00.000Z`);
+
+      const todayRecord = await this.prisma.attendanceRecord.findFirst({
+        where: { employeeId: employee.id, date: today },
+      });
+
+      const isFieldTrackingActive = Boolean(todayRecord?.firstCheckIn && !todayRecord?.lastCheckOut);
+      if (!isFieldTrackingActive) {
+        return {
+          success: true,
+          trackingActive: false,
+          message: 'Field tracking paused: location tracking is active only between punch-in and punch-out.',
+        };
+      }
+    }
+
     // 3. Calculate distance to office & geofence validation
     let isWithinGeofence = false;
     let distanceToOfficeMeters: number | null = null;
@@ -296,11 +321,12 @@ export class TrackingService {
    */
   async getAllLiveLocations(
     user: AuthenticatedUser,
-    filter?: { workLocationType?: WorkLocationType; search?: string },
+    filter?: { workLocationType?: WorkLocationType; search?: string; companyId?: string },
   ) {
+    const targetCompanyId = filter?.companyId || user.activeCompanyId || (user.isSuperAdmin ? undefined : user.companyId);
     const whereClause: any = {};
-    if (user.companyId && !user.isSuperAdmin) {
-      whereClause.companyId = user.companyId;
+    if (targetCompanyId) {
+      whereClause.companyId = targetCompanyId;
     }
     if (filter?.workLocationType) {
       whereClause.workLocationType = filter.workLocationType;
@@ -558,17 +584,25 @@ export class TrackingService {
   /**
    * Get all tracking sessions for a user or all users (HR view)
    */
-  async getSessions(user: AuthenticatedUser, targetUserId?: string) {
+  async getSessions(user: AuthenticatedUser, targetUserId?: string, targetCompanyId?: string) {
     const isHrOrAdmin =
       user.isSuperAdmin ||
       user.roles.includes('SUPER_ADMIN') ||
       user.roles.includes('HR_ADMIN') ||
       user.roles.includes('HR_MANAGER');
 
-    const queryUserId = isHrOrAdmin && targetUserId ? targetUserId : user.id;
+    const effectiveCompanyId = targetCompanyId || user.activeCompanyId || (user.isSuperAdmin ? undefined : user.companyId);
+
+    const where: any = {};
+    if (effectiveCompanyId) {
+      where.companyId = effectiveCompanyId;
+    }
+    if (!isHrOrAdmin || targetUserId) {
+      where.userId = isHrOrAdmin && targetUserId ? targetUserId : user.id;
+    }
 
     const sessions = await this.prisma.trackingSession.findMany({
-      where: isHrOrAdmin && !targetUserId ? {} : { userId: queryUserId },
+      where,
       include: {
         employee: {
           select: {

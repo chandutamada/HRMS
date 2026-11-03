@@ -16,9 +16,10 @@ export class AuditService {
       limit?: number;
     },
   ) {
-    const targetCompanyId = user.isSuperAdmin
-      ? params.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      params.companyId ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const page = params.page ? Number(params.page) : 1;
     const limit = params.limit ? Number(params.limit) : 50;

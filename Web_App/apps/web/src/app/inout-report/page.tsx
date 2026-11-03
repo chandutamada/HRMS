@@ -27,7 +27,7 @@ export default function InOutReportPage() {
   const loadReport = async () => {
     setIsLoading(true);
     try {
-      const res = await api.get<any[]>(`/attendance/inout?report_date=${reportDate}`);
+      const res = await api.get<any[]>(`/attendance/inout?report_date=${reportDate}&companyId=${activeCompany?.id || ''}`);
       setReportData(res || []);
     } catch (err) {
       console.error('Failed to load In/Out report:', err);

@@ -172,7 +172,7 @@ class _PermissionsOnboardingScreenState
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Superbee Aeronautics HRMS requires these permissions to enable face selfie punch-in, 50m geofence validation, shift alerts, and payslip downloads.',
+                  'Superbee Aeronautics HRMS requires these permissions to enable face selfie punch-in, 50m geofence validation, attendance alerts, and payslip downloads.',
                   style: TextStyle(
                     fontSize: 12.5,
                     color: Color(0xFFE9D5FF),
@@ -206,7 +206,7 @@ class _PermissionsOnboardingScreenState
                   iconBg: const Color(0xFFE0F2FE),
                   title: 'Precise GPS Location',
                   subtitle:
-                      'Used to validate your office 50m geofence boundary and on-field client operations during shift hours.',
+                      'Used to validate your office 50m geofence boundary and on-field client operations during working hours (09:00 AM – 05:30 PM).',
                   isGranted: _locationGranted,
                   onGrant: () => _requestSinglePermission(Permission.locationWhenInUse, 'location'),
                 ),
@@ -218,7 +218,7 @@ class _PermissionsOnboardingScreenState
                   iconBg: const Color(0xFFFEF3C7),
                   title: 'Push Notifications',
                   subtitle:
-                      'Delivers shift punch-in reminders, company circulars, monthly payslip releases, and manager approvals.',
+                      'Delivers punch-in reminders (09:00 AM – 05:30 PM), company circulars, monthly payslip releases, and manager approvals.',
                   isGranted: _notificationGranted,
                   onGrant: () => _requestSinglePermission(Permission.notification, 'notification'),
                 ),

@@ -239,7 +239,7 @@ export default function OfficesPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Office Geofence Configuration</h1>
           <p className="text-xs text-slate-500">
-            Configure Google Maps office geofence coordinates and default 50-metre attendance validation boundary.
+            Configure custom office geofence coordinates and radius per company (Superbee, GTIDS, GTIB) with zero-cost Leaflet & OpenStreetMap.
           </p>
         </div>
 

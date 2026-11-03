@@ -6,6 +6,7 @@ import {
   Optional,
   Inject,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
@@ -112,6 +113,7 @@ export class AttendanceService {
     // 2. Assess Validation Status
     let validationStatus: GeofenceValidationStatus = GeofenceValidationStatus.VALID;
     let suspiciousDetails: string | null = null;
+    const isOfficeEmployee = employee.workLocationType === 'ON_SITE';
 
     if (dto.isMocked) {
       validationStatus = GeofenceValidationStatus.MOCKED_LOCATION;
@@ -120,14 +122,12 @@ export class AttendanceService {
     } else if (dto.accuracyMeters > 100) {
       validationStatus = GeofenceValidationStatus.INACCURATE_GPS;
       suspiciousDetails = `High GPS inaccuracy: ${dto.accuracyMeters}m (Threshold: 100m)`;
-    } else if (!isWithin) {
+    } else if (isOfficeEmployee && !isWithin) {
       validationStatus = GeofenceValidationStatus.OUTSIDE_GEOFENCE;
-      const strictGeofence = process.env.STRICT_GEOFENCE !== 'false';
-      if (strictGeofence) {
-        throw new BadRequestException(
-          `Punch rejected: You are outside the office geofence perimeter (${Math.round(distanceMeters)}m from ${office.name}, allowed radius: ${office.radiusMeters}m).`,
-        );
-      }
+      const actionName = dto.eventType === AttendanceEventType.CHECK_IN ? 'punch in' : 'punch out';
+      throw new BadRequestException(
+        `Punch rejected: You are outside the office geofence perimeter (${Math.round(distanceMeters)}m from ${office.name}, allowed radius: ${office.radiusMeters}m). Office employees must ${actionName} from inside the office boundary.`,
+      );
     }
 
     const now = new Date();
@@ -274,6 +274,9 @@ export class AttendanceService {
 
     // 5. Handle CHECK_IN
     if (dto.eventType === AttendanceEventType.CHECK_IN) {
+      if (!dto.photoUrl || dto.photoUrl.trim() === '') {
+        throw new BadRequestException('A selfie photo is required for punch-in verification.');
+      }
       const shiftStartTimeStr = shift?.startTime || '09:00';
       const shiftEndTimeStr = shift?.endTime || '17:30';
       const istTimeFormatted = now.toLocaleTimeString('en-IN', {
@@ -387,7 +390,13 @@ export class AttendanceService {
     // 6. Handle CHECK_OUT
     if (dto.eventType === AttendanceEventType.CHECK_OUT) {
       if (!attendanceRecord.firstCheckIn) {
-        throw new BadRequestException('Cannot check out before checking in for the day');
+        throw new BadRequestException('Cannot punch out before punching in for the day');
+      }
+
+      if (isOfficeEmployee && !isWithin) {
+        throw new BadRequestException(
+          `Punch-out rejected: You must be inside the office geofence perimeter to punch out (${Math.round(distanceMeters)}m from ${office.name}, allowed radius: ${office.radiusMeters}m).`,
+        );
       }
 
       const diffMs = now.getTime() - attendanceRecord.firstCheckIn.getTime();
@@ -551,9 +560,10 @@ export class AttendanceService {
       user.roles.includes('HR_MANAGER');
 
     const targetEmployeeId = isHrOrAdmin ? params.employeeId : user.employeeId;
-    const targetCompanyId = user.isSuperAdmin
-      ? params.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      params.companyId ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const page = params.page ? Number(params.page) : 1;
     const limit = params.limit ? Number(params.limit) : 31;
@@ -829,8 +839,8 @@ export class AttendanceService {
     return corrections;
   }
 
-  async getPendingCorrections(user: AuthenticatedUser) {
-    const targetCompanyId = user.isSuperAdmin ? undefined : user.companyId;
+  async getPendingCorrections(user: AuthenticatedUser, companyIdQuery?: string) {
+    const targetCompanyId = companyIdQuery || user.activeCompanyId || (user.isSuperAdmin ? undefined : user.companyId);
 
     const where: any = { status: CorrectionStatus.PENDING };
     if (targetCompanyId) {
@@ -854,14 +864,14 @@ export class AttendanceService {
     });
   }
 
-  async getInOutReport(reportDate: string, user: AuthenticatedUser) {
+  async getInOutReport(reportDate: string, user: AuthenticatedUser, companyIdQuery?: string) {
     const targetDate = reportDate ? new Date(reportDate) : new Date();
     targetDate.setHours(0, 0, 0, 0);
 
     const nextDate = new Date(targetDate);
     nextDate.setDate(nextDate.getDate() + 1);
 
-    const companyId = user.isSuperAdmin ? undefined : user.companyId;
+    const companyId = companyIdQuery || user.activeCompanyId || (user.isSuperAdmin ? undefined : user.companyId);
 
     const employees = await this.prisma.employee.findMany({
       where: companyId ? { companyId, employmentStatus: { in: ['FULL_TIME', 'PROBATION', 'CONTRACT'] } } : { employmentStatus: { in: ['FULL_TIME', 'PROBATION', 'CONTRACT'] } },
@@ -915,19 +925,20 @@ export class AttendanceService {
     });
   }
 
-  async getDailyReport(reportDate: string, user: AuthenticatedUser) {
+  async getDailyReport(reportDate: string, user: AuthenticatedUser, companyIdQuery?: string) {
     const targetDate = reportDate ? new Date(reportDate) : new Date();
     targetDate.setHours(0, 0, 0, 0);
 
     const nextDate = new Date(targetDate);
     nextDate.setDate(nextDate.getDate() + 1);
 
-    const companyId = user.isSuperAdmin ? undefined : user.companyId;
+    const companyId = companyIdQuery || user.activeCompanyId || (user.isSuperAdmin ? undefined : user.companyId);
 
     const employees = await this.prisma.employee.findMany({
       where: companyId ? { companyId, employmentStatus: { in: ['FULL_TIME', 'PROBATION', 'CONTRACT'] } } : { employmentStatus: { in: ['FULL_TIME', 'PROBATION', 'CONTRACT'] } },
       include: {
         department: true,
+        designation: true,
         attendanceRecords: {
           where: {
             date: {
@@ -940,6 +951,8 @@ export class AttendanceService {
       orderBy: { employeeCode: 'asc' },
     });
 
+    const dateStr = reportDate || targetDate.toISOString().split('T')[0];
+
     return employees.map((emp) => {
       const rec = emp.attendanceRecords[0];
       let status = 'absent';
@@ -950,34 +963,47 @@ export class AttendanceService {
       }
 
       const hours = rec?.totalWorkMinutes ? Math.round((rec.totalWorkMinutes / 60) * 10) / 10 : 0;
+      const isLate = rec?.isLate || (rec?.lateMinutes ? rec.lateMinutes > 0 : false);
+
+      let notes = 'Absent';
+      if (status === 'present') notes = isLate ? `Late by ${rec?.lateMinutes || 0} mins` : 'On Time';
+      else if (status === 'late') notes = `Late by ${rec?.lateMinutes || 0} mins`;
+      else if (status === 'half_day') notes = 'Half Day';
+      else if (status === 'leave') notes = 'Approved Leave';
 
       return {
+        date: dateStr,
         employee_id: emp.id,
         employee_name: `${emp.firstName} ${emp.lastName}`.trim(),
         employee_code: emp.employeeCode,
-        department_name: emp.department?.name || null,
+        department_name: emp.department?.name || 'General',
+        designation_name: emp.designation?.title || 'Specialist',
+        joining_date: emp.joiningDate ? emp.joiningDate.toISOString().split('T')[0] : '',
         status,
         first_in: rec?.firstCheckIn || null,
         last_out: rec?.lastCheckOut || null,
         total_hours: hours,
+        is_late: isLate ? 'Yes' : 'No',
         late_minutes: rec?.lateMinutes || 0,
         early_exit: false,
         early_exit_minutes: 0,
+        notes,
       };
     });
   }
 
-  async getMonthlyReport(month: number, year: number, user: AuthenticatedUser) {
+  async getMonthlyReport(month: number, year: number, user: AuthenticatedUser, companyIdQuery?: string) {
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 1);
     const totalWorkingDays = 22; // Typical standard working days
 
-    const companyId = user.isSuperAdmin ? undefined : user.companyId;
+    const companyId = companyIdQuery || user.activeCompanyId || (user.isSuperAdmin ? undefined : user.companyId);
 
     const employees = await this.prisma.employee.findMany({
       where: companyId ? { companyId, employmentStatus: { in: ['FULL_TIME', 'PROBATION', 'CONTRACT'] } } : { employmentStatus: { in: ['FULL_TIME', 'PROBATION', 'CONTRACT'] } },
       include: {
         department: true,
+        designation: true,
         attendanceRecords: {
           where: {
             date: {
@@ -990,6 +1016,12 @@ export class AttendanceService {
       orderBy: { employeeCode: 'asc' },
     });
 
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    const periodLabel = `${monthNames[month - 1] || 'Month'} ${year}`;
+
     return employees.map((emp) => {
       const recs = emp.attendanceRecords;
       const presentDays = recs.filter((r) => r.status === AttendanceStatus.PRESENT).length;
@@ -998,18 +1030,121 @@ export class AttendanceService {
       const absentDays = Math.max(0, totalWorkingDays - (presentDays + halfDays * 0.5));
       const percentage = Math.round(((presentDays + halfDays * 0.5) / totalWorkingDays) * 100);
 
+      let remarks = 'Excellent Attendance';
+      if (percentage < 75) remarks = 'Critical / Low Attendance';
+      else if (percentage < 90) remarks = 'Average Attendance';
+
       return {
+        period: periodLabel,
         employee_id: emp.id,
         employee_name: `${emp.firstName} ${emp.lastName}`.trim(),
         employee_code: emp.employeeCode,
-        department_name: emp.department?.name || null,
+        department_name: emp.department?.name || 'General',
+        designation_name: emp.designation?.title || 'Specialist',
+        joining_date: emp.joiningDate ? emp.joiningDate.toISOString().split('T')[0] : '',
         total_working_days: totalWorkingDays,
         present_days: presentDays,
         absent_days: absentDays,
         late_days: lateDays,
         half_days: halfDays,
         attendance_percentage: percentage,
+        remarks,
       };
     });
+  }
+
+  /**
+   * Automated Punch-Out Fallback after 17:30 IST
+   * If an office employee verified inside the geofence forgets to punch out,
+   * automatically record punch-out at 17:30 (Shift End).
+   */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async handleAutoCheckOutAfter1730() {
+    const now = new Date();
+    const istTimeStr = now.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const [hours, minutes] = istTimeStr.split(':').map(Number);
+    const totalMinutes = (hours || 0) * 60 + (minutes || 0);
+    const shiftEndMinutes = 17 * 60 + 30; // 17:30 IST
+
+    // Run only after 17:30 IST
+    if (totalMinutes < shiftEndMinutes) {
+      return;
+    }
+
+    const istDateString = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
+    const today = new Date(`${istDateString}T00:00:00.000Z`);
+
+    try {
+      const openOfficeRecords = await this.prisma.attendanceRecord.findMany({
+        where: {
+          date: today,
+          firstCheckIn: { not: null },
+          lastCheckOut: null,
+          employee: {
+            workLocationType: 'ON_SITE',
+          },
+        },
+        include: {
+          employee: {
+            include: {
+              officeLocation: true,
+            },
+          },
+          events: {
+            orderBy: { timestamp: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+      for (const record of openOfficeRecords) {
+        const lastEvent = record.events?.[0];
+        // If employee was verified inside geofence on their check-in / last event
+        const wasInGeofence = lastEvent ? lastEvent.isWithinGeofence : true;
+
+        if (wasInGeofence && record.firstCheckIn) {
+          const shiftEndTime = new Date(`${istDateString}T17:30:00.000+05:30`);
+          const checkOutTime = now > shiftEndTime ? shiftEndTime : now;
+          const diffMs = Math.max(0, checkOutTime.getTime() - record.firstCheckIn.getTime());
+          const totalWorkMinutes = Math.floor(diffMs / (1000 * 60));
+
+          await this.prisma.attendanceRecord.update({
+            where: { id: record.id },
+            data: {
+              lastCheckOut: checkOutTime,
+              totalWorkMinutes,
+              remarks: `Auto Punch-Out at 17:30 (Shift End: verified inside geofence)`,
+            },
+          });
+
+          await this.prisma.attendanceEvent.create({
+            data: {
+              attendanceRecordId: record.id,
+              employeeId: record.employeeId,
+              officeLocationId: record.employee.officeLocationId,
+              eventType: AttendanceEventType.CHECK_OUT,
+              timestamp: checkOutTime,
+              latitude: lastEvent?.latitude || record.employee.officeLocation?.latitude || 0,
+              longitude: lastEvent?.longitude || record.employee.officeLocation?.longitude || 0,
+              accuracyMeters: lastEvent?.accuracyMeters || 10,
+              isWithinGeofence: true,
+              distanceMeters: lastEvent?.distanceMeters || 0,
+              validationStatus: GeofenceValidationStatus.VALID,
+              remarks: 'Auto-Checkout after 17:30 (Shift End fallback)',
+            },
+          });
+        }
+      }
+    } catch (_) {}
   }
 }

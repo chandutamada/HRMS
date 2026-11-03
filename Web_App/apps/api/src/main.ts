@@ -19,8 +19,13 @@ async function bootstrap() {
 
   // Enable CORS for Next.js web (3000) and Flutter Mobile (Android localhost/10.0.2.2)
   app.enableCors({
-    origin: '*',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, server-to-server)
+      // Or reflect requesting origin to satisfy W3C CORS with credentials: true
+      callback(null, origin || true);
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type,Authorization,x-company-id,X-Requested-With,Accept,Origin',
     credentials: true,
   });
 

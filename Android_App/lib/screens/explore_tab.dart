@@ -104,7 +104,7 @@ class ExploreTab extends StatelessWidget {
                 icon: Icons.calendar_month,
                 iconColor: const Color(0xFF0284C7),
                 title: 'Company Calendar & Holidays',
-                subtitle: '2026 gazetted holidays and work shifts',
+                subtitle: '2026 gazetted holidays and office working hours (09:00 AM – 05:30 PM)',
                 onTap: () {
                   Navigator.push(
                     context,

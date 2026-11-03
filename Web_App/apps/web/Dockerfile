@@ -16,8 +16,8 @@ COPY apps/web ./apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-ARG NEXT_PUBLIC_API_URL=https://api-hr.superbeeaeronautics.com/api
-ARG NEXT_PUBLIC_WS_URL=https://api-hr.superbeeaeronautics.com
+ARG NEXT_PUBLIC_API_URL=https://hrms.superbeeaeronautics.com/api
+ARG NEXT_PUBLIC_WS_URL=https://hrms.superbeeaeronautics.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 

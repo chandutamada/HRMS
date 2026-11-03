@@ -33,7 +33,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: "mysql://${DB_USER:-hrms_user}:${DB_PASSWORD:-hrms_password}@mysql:3306/${DB_NAME:-hrms_db}"
+      DATABASE_URL: "mysql://${DB_USER:-hrms_user}:${DB_PASSWORD:-hrms_password}@mysql:3306/${DB_NAME:-hrms_db}?connection_limit=30&pool_timeout=30"
       JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-for-hrms-2026}
       JWT_EXPIRES_IN: "7d"
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -54,15 +54,15 @@ services:
       context: ./Web_App
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api-hr.superbeeaeronautics.com/api}
-        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-https://api-hr.superbeeaeronautics.com}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://hrms.superbeeaeronautics.com/api}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-https://hrms.superbeeaeronautics.com}
     container_name: hrms-web
     restart: always
     environment:
       NODE_ENV: production
       PORT: 3000
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api-hr.superbeeaeronautics.com/api}
-      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-https://api-hr.superbeeaeronautics.com}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://hrms.superbeeaeronautics.com/api}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-https://hrms.superbeeaeronautics.com}
     # Bound to 127.0.0.1 so only host Nginx reverse proxy can reach it
     ports:
       - "127.0.0.1:3000:3000"

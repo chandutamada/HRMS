@@ -41,5 +41,5 @@ RUN mkdir -p /app/uploads/attendance /app/uploads/avatars
 
 EXPOSE 4000
 
-# Run prisma migration deploy before starting API
-CMD ["sh", "-c", "npx --prefix packages/database prisma migrate deploy --schema=packages/database/prisma/schema.prisma && node apps/api/dist/main.js"]
+# Run prisma db push before starting API to ensure schema is synced
+CMD ["sh", "-c", "npx --prefix packages/database prisma db push --skip-generate --schema=packages/database/prisma/schema.prisma && node apps/api/dist/main.js"]

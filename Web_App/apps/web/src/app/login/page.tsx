@@ -131,6 +131,15 @@ export default function LoginPage() {
               </>
             )}
           </button>
+
+          {/* HR-Managed Credentials Notice */}
+          <div className="mt-4 pt-3 border-t border-slate-700/60 text-center">
+            <p className="text-[11px] text-slate-400">
+              Employee UserID and Password are provided by HR.
+              <br />
+              Contact your HR administrator if you need your login credentials.
+            </p>
+          </div>
         </form>
 
         {/* Security footnote */}

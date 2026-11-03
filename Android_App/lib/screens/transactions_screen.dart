@@ -73,11 +73,11 @@ class TransactionsScreen extends StatelessWidget {
           date: '14 Sep 2026, 05:36 PM',
           status: 'SUCCESS',
           statusColor: const Color(0xFF16A34A),
-          subtitle: 'Total span: 8h 34m (General Shift)',
+          subtitle: 'Total span: 8h 34m (09:00 AM – 05:30 PM)',
           details: 'Within 50m geofence perimeter',
         ),
         _buildTransactionCard(
-          title: 'Check-In • Morning Shift',
+          title: 'Check-In • Office Hours',
           date: '14 Sep 2026, 09:02 AM',
           status: 'SUCCESS',
           statusColor: const Color(0xFF16A34A),

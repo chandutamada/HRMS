@@ -94,14 +94,14 @@ export class EmployeesController {
   }
 
   @Post()
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Create and onboard a new employee' })
   create(@Body() dto: CreateEmployeeDto, @CurrentUser() user: AuthenticatedUser) {
     return this.employeesService.create(dto, user);
   }
 
   @Post('bulk')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Bulk onboard employees (from Excel/CSV import)' })
   bulkCreate(
     @Body('employees') employees: CreateEmployeeDto[],
@@ -111,7 +111,7 @@ export class EmployeesController {
   }
 
   @Put(':id')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Update employee details' })
   update(
     @Param('id') id: string,
@@ -122,17 +122,18 @@ export class EmployeesController {
   }
 
   @Post(':id/reset-password')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Reset employee password' })
   resetPassword(
     @Param('id') id: string,
+    @Body('password') password: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.employeesService.resetPassword(id, user);
+    return this.employeesService.resetPassword(id, user, password);
   }
 
   @Post('bulk-shift')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Assign shift to multiple employees' })
   bulkShift(
     @Body('employee_ids') employeeIds: string[],
@@ -143,14 +144,14 @@ export class EmployeesController {
   }
 
   @Post('sync-attendance')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Sync attendance punches' })
   syncAttendance(@Query('emp_id') empId?: string) {
     return this.employeesService.syncAttendance(empId);
   }
 
   @Put(':id/toggle-active')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Toggle employee active status' })
   toggleActive(
     @Param('id') id: string,
@@ -160,7 +161,7 @@ export class EmployeesController {
   }
 
   @Delete(':id/permanent')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Permanently delete employee and all records' })
   deletePermanent(
     @Param('id') id: string,

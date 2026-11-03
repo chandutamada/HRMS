@@ -99,13 +99,38 @@ function numberToWordsIndian(num: number): string {
 export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     // Standard A4: 595.28 x 841.89 points
+    const compName = data.companyName || 'Superbee Aeronautics Private Limited';
+    const compUpper = compName.toUpperCase();
+    const isGtids = compUpper.includes('GTIDS') || compUpper.includes('INCLUSIVE');
+    const isGtib = compUpper.includes('GTIB') || compUpper.includes('INSURANCE') || compUpper.includes('INSURENCE');
+
+    let badgeText = 'S U P E R B E E';
+    let companyShortTitle = 'SUPERBEE AERONAUTICS';
+    let refPrefix = 'SAPL';
+    let defaultAddress = 'Address: C/o Centurion University of Technology and Management Survey NO: 157-1 TO 6, Tekkali Village, Nellimarla, 535 003, Andhra Pradesh 535003';
+    let corporateOffice = 'Corporate office: Flat No – 501, Akruthi Vijayalakshmi Residency, P & T Colony, Seethammadhara, Visakhapatnam, AP-530013.';
+
+    if (isGtids) {
+      badgeText = 'G T I D S';
+      companyShortTitle = 'GTIDS PVT. LTD.';
+      refPrefix = 'GTIDS';
+      defaultAddress = 'Address: Centurion University Campus, Tekkali Village, Nellimarla, Vizianagaram, Andhra Pradesh 535003';
+      corporateOffice = 'Corporate office: Gram Tarang Inclusive Development Services Pvt. Ltd., Vizianagaram, AP-535003.';
+    } else if (isGtib) {
+      badgeText = 'G T I B';
+      companyShortTitle = 'GTIB PVT. LTD.';
+      refPrefix = 'GTIB';
+      defaultAddress = 'Address: Centurion University Campus, Tekkali Village, Nellimarla, Vizianagaram, Andhra Pradesh 535003';
+      corporateOffice = 'Corporate office: Gram Tarang Insurance and Brokering Pvt. Ltd., Vizianagaram, AP-535003.';
+    }
+
     const doc = new PDFDocument({
       size: 'A4',
       margin: 0,
       autoFirstPage: true,
       info: {
         Title: `Payslip_${data.employeeCode}_${data.monthName}_${data.year}`,
-        Author: 'Superbee Aeronautics Pvt. Ltd.',
+        Author: compName,
         Subject: 'Official Company Payroll Slip',
       },
     });
@@ -145,9 +170,9 @@ export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> 
     const logoY = 32;
 
     doc.save();
-    // Arched text SUPERBEE
+    // Dynamic top badge text
     doc.font('Helvetica-Bold').fontSize(10).fillColor(textDark);
-    doc.text('S U P E R B E E', logoX - 44, logoY - 14, { width: 110, align: 'center' });
+    doc.text(badgeText, logoX - 44, logoY - 14, { width: 110, align: 'center' });
 
     // Stylized Bee / Drone emblem
     // Center Body
@@ -171,8 +196,8 @@ export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> 
     doc.restore();
 
     // B. Main Company Title
-    doc.font('Helvetica-Bold').fontSize(19).fillColor(textDark);
-    doc.text('SUPERBEE AERONAUTICS PVT. LTD.', 160, 44, { characterSpacing: 0.5 });
+    doc.font('Helvetica-Bold').fontSize(compUpper.length > 35 ? 13 : (compUpper.length > 25 ? 15 : 18)).fillColor(textDark);
+    doc.text(compUpper, 160, 44, { characterSpacing: 0.5 });
 
     // C. Horizontal Gold Accent Bar under branding
     doc.save();
@@ -183,7 +208,7 @@ export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> 
 
     // 4. LETTER REF & PAYROLL SLIP TITLE
     const refYear = data.year || 2026;
-    const refCode = data.letterRefNo || `SAPL/HR/${refYear}/${data.employeeCode.replace(/\D/g, '').padEnd(3, '0') || '903'}`;
+    const refCode = data.letterRefNo || `${refPrefix}/HR/${refYear}/${data.employeeCode.replace(/\D/g, '').padEnd(3, '0') || '001'}`;
 
     doc.font('Helvetica').fontSize(10.5).fillColor('#1E293B');
     doc.text(`Letter Ref. No: ${refCode}`, 50, 110);
@@ -206,7 +231,7 @@ export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> 
       ['Employee ID', `: ${data.employeeCode}`],
       ['Designation', `: ${data.designation || 'Specialist'}`],
       ['Location / Dept', `: ${data.location || 'Visakhapatnam, AP'} / ${data.department || 'Aeronautics'}`],
-      ['No. of Days in Month', `: ${data.totalDays} | No. of Present Days: ${data.presentDays}`],
+      ['Attendance Summary', `: Total: ${data.totalDays} Days | Present: ${data.presentDays} | LOP: ${data.lopDays || 0} Day(s)`],
     ];
 
     for (let i = 0; i < metadata.length; i++) {
@@ -368,7 +393,7 @@ export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> 
     // 8. AUTHORIZATION, SIGNATURE & OFFICIAL RUBBER STAMP
     const authY = 645;
     doc.font('Helvetica').fontSize(11).fillColor(textDark).text('Authorized by:', 50, authY);
-    doc.text('HR Manager - Superbee Aeronautics', 50, authY + 16);
+    doc.text(`HR Manager - ${compName}`, 50, authY + 16);
 
     // Handwritten Calligraphy Signature representation
     const sigY = authY + 44;
@@ -398,8 +423,8 @@ export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> 
 
     // Circular Stamp text representation
     doc.font('Helvetica-Bold').fontSize(5).fillColor('#143862');
-    doc.text('SUPERBEE AERONAUTICS', stampX - 24, stampY - 24, { width: 48, align: 'center' });
-    doc.text('PVT. LTD. ★', stampX - 24, stampY + 17, { width: 48, align: 'center' });
+    doc.text(companyShortTitle, stampX - 24, stampY - 24, { width: 48, align: 'center' });
+    doc.text('OFFICIAL SEAL ★', stampX - 24, stampY + 17, { width: 48, align: 'center' });
     doc.fontSize(7).text('★', stampX - 4, stampY - 5);
     doc.restore();
 
@@ -413,14 +438,14 @@ export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> 
 
     doc.font('Helvetica-Bold').fontSize(6.8).fillColor('#1E293B');
     doc.text(
-      'Address: C/o Centurion University of Technology and Management (CUTM) Ramchandrapur, Jatni, Bhubaneswar, Khurda, Odisha, 752050',
+      data.companyAddress ? `Address: ${data.companyAddress}` : defaultAddress,
       40,
       footY + 6,
       { width: 440, align: 'center' }
     );
     doc.font('Helvetica').fontSize(6.8).fillColor('#334155');
     doc.text(
-      'Corporate office: Flat No – 501, Akruthi Vijayalakshmi Residency, P & T Colony, Seethammadhara, Visakhapatnam, AP-530013.',
+      corporateOffice,
       40,
       footY + 17,
       { width: 440, align: 'center' }

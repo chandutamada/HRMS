@@ -8,7 +8,7 @@ import {
   IsDateString,
   MinLength,
 } from 'class-validator';
-import { EmploymentStatus, Gender } from '@prisma/client';
+import { EmploymentStatus, Gender, WorkLocationType } from '@prisma/client';
 
 export class CreateEmployeeDto {
   @ApiProperty({ example: 'SB-003' })
@@ -62,6 +62,11 @@ export class CreateEmployeeDto {
   @IsEnum(EmploymentStatus)
   employmentStatus?: EmploymentStatus;
 
+  @ApiProperty({ required: false, enum: WorkLocationType })
+  @IsOptional()
+  @IsEnum(WorkLocationType)
+  workLocationType?: WorkLocationType;
+
   @ApiProperty({ required: false, description: 'Department ID' })
   @IsOptional()
   @IsString()
@@ -71,6 +76,16 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   designationId?: string;
+
+  @ApiProperty({ required: false, description: 'Designation Title (auto-creates if id omitted)' })
+  @IsOptional()
+  @IsString()
+  designationTitle?: string;
+
+  @ApiProperty({ required: false, description: 'Biometric / Device User ID' })
+  @IsOptional()
+  @IsString()
+  deviceUserId?: string;
 
   @ApiProperty({ required: false, description: 'Office Location ID' })
   @IsOptional()
@@ -152,7 +167,32 @@ export class UpdateEmployeeDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  employeeCode?: string;
+
+  @ApiProperty({ required: false, enum: WorkLocationType })
+  @IsOptional()
+  @IsEnum(WorkLocationType)
+  workLocationType?: WorkLocationType;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   phone?: string;
+
+  @ApiProperty({ required: false, enum: Gender })
+  @IsOptional()
+  @IsEnum(Gender)
+  gender?: Gender;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsDateString()
+  joiningDate?: string;
 
   @ApiProperty({ required: false, enum: EmploymentStatus })
   @IsOptional()
@@ -162,27 +202,32 @@ export class UpdateEmployeeDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  departmentId?: string;
+  departmentId?: string | null;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  designationId?: string;
+  designationId?: string | null;
+
+  @ApiProperty({ required: false, description: 'Designation Title (auto-creates if id omitted)' })
+  @IsOptional()
+  @IsString()
+  designationTitle?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  officeLocationId?: string;
+  officeLocationId?: string | null;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  shiftId?: string;
+  shiftId?: string | null;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  reportingManagerId?: string;
+  reportingManagerId?: string | null;
 
   @ApiProperty({ required: false })
   @IsOptional()

@@ -558,7 +558,7 @@ export default function AttendancePage() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Captured Face Verification</h3>
-                  <p className="text-xs text-slate-500">Superbee Aeronautics Biometric Attendance</p>
+                  <p className="text-xs text-slate-500">{activeCompany?.name || 'Superbee Aeronautics'} Biometric Attendance</p>
                 </div>
               </div>
               <button

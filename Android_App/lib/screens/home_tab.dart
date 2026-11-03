@@ -3,8 +3,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:battery_plus/battery_plus.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
+import '../services/tracking_service.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/face_capture_dialog.dart';
 import 'my_calendar_screen.dart';
@@ -222,9 +224,43 @@ class _HomeTabState extends State<HomeTab> {
         (_todayStatus?['lastCheckOut'] != null);
     final eventType = (hasCheckedIn && !hasCheckedOut) ? 'CHECK_OUT' : 'CHECK_IN';
 
+    final employee = widget.userData['employee'] as Map<String, dynamic>? ?? {};
+    final workLocationType = employee['workLocationType']?.toString() ?? 'ON_SITE';
+    final isOffice = workLocationType == 'ON_SITE';
+    final office = _todayStatus?['office'] as Map<String, dynamic>?;
+
+    // Strict local geofence guard for office employees on both Punch-In and Punch-Out
+    if (isOffice && office != null && office['latitude'] != null && office['longitude'] != null) {
+      final offLat = (office['latitude'] as num).toDouble();
+      final offLng = (office['longitude'] as num).toDouble();
+      final offRadius = (office['radiusMeters'] as num?)?.toDouble() ?? 50.0;
+      final dist = Geolocator.distanceBetween(
+        locResult.position!.latitude,
+        locResult.position!.longitude,
+        offLat,
+        offLng,
+      );
+
+      if (dist > offRadius) {
+        if (mounted) {
+          final action = eventType == 'CHECK_IN' ? 'punch in' : 'punch out';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Punch rejected: You are ${dist.round()}m away from ${office['name'] ?? 'office'} (Allowed radius: ${offRadius.round()}m). Office employees must $action inside the office geofence.',
+              ),
+              backgroundColor: Colors.red.shade700,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          setState(() => _isPunching = false);
+        }
+        return;
+      }
+    }
+
     String? facePhotoUrl;
     if (eventType == 'CHECK_IN') {
-      final employee = widget.userData['employee'] as Map<String, dynamic>? ?? {};
       final firstName = employee['firstName'] ?? employee['fullName'] ?? 'Employee';
       final empCode = employee['employeeCode'] ?? widget.userData['employeeCode'] ?? 'SB-001';
 
@@ -235,7 +271,7 @@ class _HomeTabState extends State<HomeTab> {
         builder: (_) => FaceCaptureDialog(
           employeeName: firstName.toString(),
           employeeCode: empCode.toString(),
-          officeName: _todayStatus?['office']?['name']?.toString() ?? 'Superbee Aeronautics HQ',
+          officeName: _todayStatus?['office']?['name']?.toString() ?? 'Office HQ',
         ),
       );
 
@@ -271,6 +307,15 @@ class _HomeTabState extends State<HomeTab> {
           ? (rawData['data'] is Map<String, dynamic> ? rawData['data'] as Map<String, dynamic> : rawData)
           : {};
       await _fetchHomeData();
+
+      // Field employee live tracking is triggered strictly from Punch-In till Punch-Out
+      if (workLocationType == 'OFF_SITE') {
+        if (eventType == 'CHECK_IN') {
+          TrackingService().startTracking(workType: 'OFF_SITE');
+        } else if (eventType == 'CHECK_OUT') {
+          TrackingService().stopTracking();
+        }
+      }
 
       if (mounted) {
         _showPunchFeedbackDialog(result, eventType, batteryLevel);
@@ -316,7 +361,7 @@ class _HomeTabState extends State<HomeTab> {
     final String timeStr = result['time']?.toString() ?? DateFormat('hh:mm a').format(DateTime.now());
     final String officeName = result['officeName']?.toString() ?? 'Office Geofence';
     final String timingMsg = result['timingMessage']?.toString() ??
-        (isLate ? 'Punched in after grace period.' : 'Punched in on time within shift hours.');
+        (isLate ? 'Punched in after grace period.' : 'Punched in on time within office hours (09:00 AM - 05:30 PM).');
     final String totalWorkStr = result['totalWorkingHoursFormatted']?.toString() ??
         (result['totalWorkMinutes'] != null
             ? '${(result['totalWorkMinutes'] as int) ~/ 60} hrs ${(result['totalWorkMinutes'] as int) % 60} mins'
@@ -420,7 +465,7 @@ class _HomeTabState extends State<HomeTab> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Your shift and working hours have been successfully recorded and synced with the HR dashboard.',
+                'Your working hours (09:00 AM - 05:30 PM) have been successfully recorded and synced with the HR dashboard.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4),
               ),

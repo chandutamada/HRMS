@@ -27,9 +27,10 @@ export class EmployeesService {
       limit?: number;
     },
   ) {
-    const targetCompanyId = user.isSuperAdmin
-      ? params.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      params.companyId ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const page = params.page ? Number(params.page) : 1;
     const limit = params.limit ? Number(params.limit) : 50;
@@ -156,9 +157,10 @@ export class EmployeesService {
   }
 
   async create(dto: CreateEmployeeDto, user: AuthenticatedUser) {
-    const targetCompanyId = user.isSuperAdmin
-      ? dto.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      dto.companyId ||
+      user.activeCompanyId ||
+      user.companyId;
 
     if (!targetCompanyId) {
       throw new BadRequestException('Target Company ID is required to create an employee');
@@ -214,7 +216,29 @@ export class EmployeesService {
         },
       });
 
-      // 3. Create Employee Profile
+      // 3. Resolve Designation if designationTitle is provided
+      let designationId = dto.designationId || null;
+      if (!designationId && dto.designationTitle?.trim()) {
+        const title = dto.designationTitle.trim();
+        const code = title.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 40);
+        const existingDesig = await tx.designation.findFirst({
+          where: { companyId: targetCompanyId, title },
+        });
+        if (existingDesig) {
+          designationId = existingDesig.id;
+        } else {
+          const createdDesig = await tx.designation.create({
+            data: {
+              companyId: targetCompanyId,
+              title,
+              code: `${code}_${Math.floor(1000 + Math.random() * 9000)}`,
+            },
+          });
+          designationId = createdDesig.id;
+        }
+      }
+
+      // 4. Create Employee Profile
       const emp = await tx.employee.create({
         data: {
           userId: createdUser.id,
@@ -225,11 +249,12 @@ export class EmployeesService {
           email: dto.email,
           phone: dto.phone,
           gender: dto.gender,
+          workLocationType: dto.workLocationType || 'ON_SITE',
           joiningDate: new Date(dto.joiningDate),
           dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           employmentStatus: dto.employmentStatus || 'FULL_TIME',
           departmentId: dto.departmentId || null,
-          designationId: dto.designationId || null,
+          designationId,
           officeLocationId: dto.officeLocationId || null,
           shiftId: dto.shiftId || null,
           reportingManagerId: dto.reportingManagerId || null,
@@ -307,15 +332,80 @@ export class EmployeesService {
       throw new ForbiddenException('You cannot modify employee from another company');
     }
 
-    const updated = await this.prisma.employee.update({
-      where: { id },
-      data: dto,
-      include: {
-        department: true,
-        designation: true,
-        officeLocation: true,
-        shift: true,
-      },
+    // Check code conflict if code is changing
+    if (dto.employeeCode && dto.employeeCode !== employee.employeeCode) {
+      const existing = await this.prisma.employee.findUnique({
+        where: {
+          companyId_employeeCode: {
+            companyId: employee.companyId,
+            employeeCode: dto.employeeCode,
+          },
+        },
+      });
+      if (existing && existing.id !== id) {
+        throw new ConflictException(`Employee code ${dto.employeeCode} already in use`);
+      }
+    }
+
+    const { joiningDate, ...restDto } = dto;
+
+    const dataToUpdate: any = {
+      ...restDto,
+      ...(joiningDate ? { joiningDate: new Date(joiningDate) } : {}),
+      ...(restDto.shiftId === '' ? { shiftId: null } : {}),
+      ...(restDto.departmentId === '' ? { departmentId: null } : {}),
+      ...(restDto.designationId === '' ? { designationId: null } : {}),
+      ...(restDto.officeLocationId === '' ? { officeLocationId: null } : {}),
+      ...(restDto.reportingManagerId === '' ? { reportingManagerId: null } : {}),
+    };
+
+    // If firstName or lastName is provided, sanitize whitespace
+    if (dataToUpdate.firstName) dataToUpdate.firstName = dataToUpdate.firstName.trim();
+    if (dataToUpdate.lastName !== undefined) dataToUpdate.lastName = dataToUpdate.lastName.trim() || '-';
+
+    // Resolve designation if designationTitle is provided
+    if (!dataToUpdate.designationId && dto.designationTitle?.trim()) {
+      const title = dto.designationTitle.trim();
+      const code = title.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 40);
+      const existingDesig = await this.prisma.designation.findFirst({
+        where: { companyId: employee.companyId, title },
+      });
+      if (existingDesig) {
+        dataToUpdate.designationId = existingDesig.id;
+      } else {
+        const createdDesig = await this.prisma.designation.create({
+          data: {
+            companyId: employee.companyId,
+            title,
+            code: `${code}_${Math.floor(1000 + Math.random() * 9000)}`,
+          },
+        });
+        dataToUpdate.designationId = createdDesig.id;
+      }
+    }
+    delete dataToUpdate.designationTitle;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const emp = await tx.employee.update({
+        where: { id },
+        data: dataToUpdate,
+        include: {
+          department: true,
+          designation: true,
+          officeLocation: true,
+          shift: true,
+        },
+      });
+
+      // Keep user.employeeCode in sync
+      if (dto.employeeCode && dto.employeeCode !== employee.employeeCode && employee.userId) {
+        await tx.user.update({
+          where: { id: employee.userId },
+          data: { employeeCode: dto.employeeCode },
+        });
+      }
+
+      return emp;
     });
 
     return updated;
@@ -468,18 +558,20 @@ export class EmployeesService {
     };
   }
 
-  async resetPassword(id: string, user: AuthenticatedUser) {
+  async resetPassword(id: string, user: AuthenticatedUser, newPassword?: string) {
     const emp = await this.prisma.employee.findUnique({ where: { id } });
     if (!emp || !emp.userId) throw new NotFoundException('Employee or user record not found');
 
-    const newPasswordHash = await bcrypt.hash(emp.employeeCode, 10);
+    const passwordToSet = (newPassword && newPassword.trim()) ? newPassword.trim() : emp.employeeCode;
+    const newPasswordHash = await bcrypt.hash(passwordToSet, 10);
     await this.prisma.user.update({
       where: { id: emp.userId },
       data: { passwordHash: newPasswordHash },
     });
 
     return {
-      message: `Password reset to employee code "${emp.employeeCode}".`,
+      message: `Password updated to "${passwordToSet}".`,
+      password: passwordToSet,
     };
   }
 
@@ -503,7 +595,7 @@ export class EmployeesService {
   }
 
   async getShifts(user: AuthenticatedUser) {
-    const companyId = user.isSuperAdmin ? undefined : user.companyId;
+    const companyId = user.activeCompanyId || (user.isSuperAdmin ? undefined : user.companyId);
     return this.prisma.shift.findMany({
       where: companyId ? { companyId } : undefined,
       orderBy: { name: 'asc' },

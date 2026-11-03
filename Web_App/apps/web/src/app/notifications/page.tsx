@@ -224,7 +224,7 @@ export default function NotificationsPage() {
             <span>Notifications &amp; Feed</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Announcements, thought of the day &amp; birthday greetings for Superbee Aeronautics.
+            Announcements, thought of the day &amp; birthday greetings for {activeCompany?.name || 'Superbee Aeronautics'}.
           </p>
         </div>
 

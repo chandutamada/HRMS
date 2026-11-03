@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard,
   MapPin,
@@ -46,6 +47,7 @@ const adminNav = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { activeCompany } = useAuth();
 
   const renderLink = (item: { name: string; href: string; icon: any }) => {
     const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}`));
@@ -75,8 +77,12 @@ export default function Sidebar() {
           <Building className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <span className="block text-sm font-bold text-white tracking-wide truncate">SUPERBEE HRMS</span>
-          <span className="block text-[10px] text-blue-400 font-medium truncate">Aeronautics Pvt. Ltd.</span>
+          <span className="block text-sm font-bold text-white tracking-wide truncate">
+            {activeCompany ? `${activeCompany.code} HRMS` : 'ENTERPRISE HRMS'}
+          </span>
+          <span className="block text-[10px] text-blue-400 font-medium truncate" title={activeCompany?.name}>
+            {activeCompany ? activeCompany.name : 'Multi-Tenant Portal'}
+          </span>
         </div>
       </div>
 
@@ -112,11 +118,11 @@ export default function Sidebar() {
       <div className="border-t border-slate-800 p-4">
         <div className="rounded-xl bg-slate-800/60 p-3 border border-slate-700/50 text-[11px] text-slate-400">
           <div className="flex items-center justify-between text-slate-300 font-semibold mb-1">
-            <span>Enterprise Organization</span>
+            <span className="truncate pr-1">{activeCompany?.code || 'Enterprise'}</span>
             <span className="text-emerald-400">ACTIVE</span>
           </div>
-          <div className="truncate text-[10px] text-slate-400 mt-0.5">
-            Centurion University Campus
+          <div className="truncate text-[10px] text-slate-400 mt-0.5" title={activeCompany?.name}>
+            {activeCompany?.name || 'Centurion University Campus'}
           </div>
         </div>
       </div>

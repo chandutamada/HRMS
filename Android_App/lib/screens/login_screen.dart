@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import '../services/api_service.dart';
 import '../services/biometric_service.dart';
-import '../services/google_auth_service.dart';
 import '../widgets/timesync_logo.dart';
 import 'main_navigation_screen.dart';
 
@@ -128,7 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
           e.type == DioExceptionType.receiveTimeout) {
         msg = 'Connection timed out. Please check your internet or backend connection.';
       } else if (e.type == DioExceptionType.connectionError) {
-        msg = 'Cannot connect to server (${ApiService().dio.options.baseUrl}).';
+        msg = 'Cannot connect to server (${ApiService().dio.options.baseUrl}).\nTap the top-right icon 📡 to switch between USB / Wi-Fi.';
       } else if (e.response?.data?['message'] != null) {
         msg = e.response!.data['message'].toString();
       }
@@ -142,141 +140,6 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  /// Native Google / Gmail Account Sign-In
-  Future<void> _handleGoogleLogin() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      GoogleSignInAccount? googleUser;
-      try {
-        // 1. Attempt Native Google Play Services Account Sheet
-        googleUser = await GoogleAuthService().promptGoogleAccount();
-      } catch (nativeErr) {
-        debugPrint('Native Google Play Services prompt error (fallback to manual prompt): $nativeErr');
-      }
-
-      String? emailToAuth;
-      String? idToken;
-      String? googleId;
-      String? displayName;
-
-      if (googleUser != null) {
-        emailToAuth = googleUser.email;
-        googleId = googleUser.id;
-        displayName = googleUser.displayName;
-        try {
-          final authData = await googleUser.authentication;
-          idToken = authData.idToken;
-        } catch (_) {}
-      } else {
-        // Fallback: If native account picker was cancelled or Google Play Services is missing
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-        });
-
-        final emailController = TextEditingController(text: 'hr@gramtarang.org');
-        final submitted = await showDialog<String>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xFF1E293B),
-            title: const Row(
-              children: [
-                Icon(Icons.g_mobiledata, color: Color(0xFF38BDF8), size: 28),
-                SizedBox(width: 8),
-                Text('Sign in with Gmail', style: TextStyle(color: Colors.white, fontSize: 16)),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Enter your registered Gmail or organization email:',
-                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: const InputDecoration(
-                    labelText: 'Gmail / Work Email',
-                    labelStyle: TextStyle(color: Color(0xFF94A3B8)),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF475569)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF38BDF8)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Color(0xFF94A3B8))),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, emailController.text.trim()),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0284C7)),
-                child: const Text('Sign In', style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
-        );
-
-        if (submitted == null || submitted.isEmpty) return;
-        emailToAuth = submitted;
-        setState(() {
-          _isLoading = true;
-        });
-      }
-
-      // 2. Authenticate with backend API
-      final result = await GoogleAuthService().authenticateWithBackend(
-        email: emailToAuth,
-        idToken: idToken,
-        googleId: googleId,
-        displayName: displayName,
-      );
-
-      final user = result['user'];
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => MainNavigationScreen(userData: user),
-          ),
-        );
-      }
-    } on DioException catch (e) {
-      String msg = 'Failed to sign in with Google.';
-      if (e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.unknown) {
-        msg = 'Cannot connect to server (${ApiService().dio.options.baseUrl}). Please tap "Configure Backend Server IP" below.';
-      } else if (e.response?.data != null && e.response?.data['message'] != null) {
-        msg = e.response!.data['message'].toString();
-      }
-      setState(() {
-        _errorMessage = msg;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
       }
     }
   }
@@ -483,9 +346,9 @@ class _LoginScreenState extends State<LoginScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _buildUrlChip('Production (superbeeaeronautics)', 'https://api-hr.superbeeaeronautics.com/api', controller),
                 _buildUrlChip('USB / ADB Localhost', 'http://localhost:4000/api', controller),
-                _buildUrlChip('Wi-Fi PC (172.16.202.64)', 'http://172.16.202.64:4000/api', controller),
+                _buildUrlChip('Wi-Fi PC (192.168.1.16)', 'http://192.168.1.16:4000/api', controller),
+                _buildUrlChip('Production (hrms.superbeeaeronautics)', 'https://hrms.superbeeaeronautics.com/api', controller),
                 _buildUrlChip('Emulator', 'http://10.0.2.2:4000/api', controller),
               ],
             ),
@@ -654,7 +517,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     GestureDetector(
                                       onTap: _showServerConfigDialog,
                                       child: const Text(
-                                        '⚙️ Tap here to configure Backend Server IP (e.g. 172.16.202.64:4000)',
+                                        '⚙️ Tap here to configure Backend Server IP (e.g. 172.16.203.134:4000)',
                                         style: TextStyle(
                                           color: Color(0xFF38BDF8),
                                           fontSize: 11.5,
@@ -819,43 +682,28 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                             ),
                           ),
-                           const SizedBox(height: 16),
+                          const SizedBox(height: 18),
 
-                          // Google / Gmail Sign-In Button
-                          OutlinedButton.icon(
-                            onPressed: _isLoading ? null : _handleGoogleLogin,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(color: Color(0xFF334155)),
-                              backgroundColor: const Color(0xFF0F172A).withValues(alpha: 0.6),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          // HR Credentials Notice
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F172A).withValues(alpha: 0.5),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF334155)),
                             ),
-                            icon: Container(
-                              padding: const EdgeInsets.all(2),
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.g_mobiledata,
-                                color: Color(0xFFEA4335),
-                                size: 18,
-                              ),
-                            ),
-                            label: const Text(
-                              'Sign in with Google / Gmail',
+                            child: const Text(
+                              'UserID & Password are provided by your HR Department.',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFFE2E8F0),
+                                fontSize: 11,
+                                color: Color(0xFF94A3B8),
+                                fontWeight: FontWeight.w400,
                               ),
                             ),
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
 
                           // Biometric Login Button (Fingerprint Icon + "Biometric Login")
                           InkWell(

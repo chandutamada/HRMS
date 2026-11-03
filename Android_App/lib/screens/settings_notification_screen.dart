@@ -54,8 +54,8 @@ class _SettingsNotificationScreenState extends State<SettingsNotificationScreen>
                 _buildSettingsCard('ATTENDANCE & GEOFENCE NOTIFICATIONS', [
                   SwitchListTile(
                     activeThumbColor: const Color(0xFF7C3AED),
-                    title: const Text('Shift Punch-In Reminders', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                    subtitle: const Text('Notify 15 minutes before 09:00 AM office shift start', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                    title: const Text('Office Punch-In Reminders', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    subtitle: const Text('Notify 15 minutes before 09:00 AM office start time', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                     value: _shiftReminders,
                     onChanged: (val) => setState(() => _shiftReminders = val),
                   ),

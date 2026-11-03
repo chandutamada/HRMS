@@ -16,9 +16,10 @@ export class ReportsService {
    * HR Dashboard Cards Summary
    */
   async getDashboardSummary(user: AuthenticatedUser, companyIdQuery?: string) {
-    const targetCompanyId = user.isSuperAdmin
-      ? companyIdQuery || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      companyIdQuery ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const companyWhere = targetCompanyId ? { companyId: targetCompanyId } : {};
 
@@ -36,6 +37,7 @@ export class ReportsService {
       pendingCorrections,
       geofenceRejections,
       pendingLeaves,
+      pendingHelpdesk,
     ] = await Promise.all([
       this.prisma.employee.count({
         where: {
@@ -99,6 +101,12 @@ export class ReportsService {
           status: LeaveStatus.PENDING,
         },
       }),
+      this.prisma.helpdeskTicket.count({
+        where: {
+          ...companyWhere,
+          status: 'OPEN',
+        },
+      }).catch(() => 0),
     ]);
 
     return {
@@ -110,6 +118,7 @@ export class ReportsService {
       pendingCorrections,
       geofenceRejections,
       pendingLeaves,
+      pendingHelpdesk: Number(pendingHelpdesk) || 0,
     };
   }
 
@@ -125,9 +134,10 @@ export class ReportsService {
       status?: GeofenceValidationStatus;
     },
   ) {
-    const targetCompanyId = user.isSuperAdmin
-      ? params.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      params.companyId ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const where: any = {};
     if (targetCompanyId) {
@@ -217,9 +227,10 @@ export class ReportsService {
     user: AuthenticatedUser,
     params: { companyId?: string; date: string },
   ): Promise<string> {
-    const targetCompanyId = user.isSuperAdmin
-      ? params.companyId || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      params.companyId ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const targetDate = new Date(params.date);
     targetDate.setHours(0, 0, 0, 0);

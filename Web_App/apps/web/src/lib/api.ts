@@ -21,6 +21,17 @@ class ApiClient {
     return headers;
   }
 
+  private async safeFetch(url: string, init: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, init);
+    } catch (err: any) {
+      if (err?.message === 'Failed to fetch' || err?.name === 'TypeError') {
+        throw new Error(`Unable to connect to backend API at ${API_BASE_URL}. Please ensure backend server on port 4000 is running.`);
+      }
+      throw err;
+    }
+  }
+
   async get<T = any>(endpoint: string, params?: Record<string, any>): Promise<T> {
     const url = new URL(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`);
     if (params) {
@@ -31,7 +42,7 @@ class ApiClient {
       });
     }
 
-    const res = await fetch(url.toString(), {
+    const res = await this.safeFetch(url.toString(), {
       method: 'GET',
       headers: this.getHeaders(),
     });
@@ -40,7 +51,7 @@ class ApiClient {
   }
 
   async post<T = any>(endpoint: string, body?: any): Promise<T> {
-    const res = await fetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
+    const res = await this.safeFetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
@@ -50,7 +61,7 @@ class ApiClient {
   }
 
   async put<T = any>(endpoint: string, body?: any): Promise<T> {
-    const res = await fetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
+    const res = await this.safeFetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
       method: 'PUT',
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
@@ -60,7 +71,7 @@ class ApiClient {
   }
 
   async patch<T = any>(endpoint: string, body?: any): Promise<T> {
-    const res = await fetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
+    const res = await this.safeFetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
       method: 'PATCH',
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
@@ -70,7 +81,7 @@ class ApiClient {
   }
 
   async delete<T = any>(endpoint: string, body?: any): Promise<T> {
-    const res = await fetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
+    const res = await this.safeFetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
@@ -80,7 +91,7 @@ class ApiClient {
   }
 
   async download(endpoint: string): Promise<Blob> {
-    const res = await fetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
+    const res = await this.safeFetch(`${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`, {
       method: 'GET',
       headers: this.getHeaders(),
     });

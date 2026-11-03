@@ -42,7 +42,7 @@ export class CompaniesController {
   }
 
   @Put(':id')
-  @Roles('SUPER_ADMIN', 'HR_ADMIN')
+  @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({ summary: 'Update company details' })
   update(
     @Param('id') id: string,

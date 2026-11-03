@@ -139,8 +139,8 @@ class RouteAnalyticsSheetWidget extends StatelessWidget {
                                 const SizedBox(height: 2),
                                 Text(
                                   isWithinOfficeHours
-                                      ? 'Session logged within authorized shift hours. Full TA/DA eligible.'
-                                      : 'Logged outside standard shift window. May require manager regularization.',
+                                      ? 'Session logged within authorized office hours (09:00 AM – 05:30 PM). Full TA/DA eligible.'
+                                      : 'Logged outside standard office hours (09:00 AM – 05:30 PM). May require manager regularization.',
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: isWithinOfficeHours

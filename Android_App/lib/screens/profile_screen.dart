@@ -447,7 +447,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildProfileTile(Icons.corporate_fare, 'Department', department.toString()),
                   _buildProfileTile(Icons.work_outline, 'Designation', designation.toString()),
                   _buildProfileTile(Icons.location_city, 'Base Office', office.toString()),
-                  _buildProfileTile(Icons.schedule, 'Shift Timing', '09:00 AM – 05:30 PM (General)'),
+                  _buildProfileTile(Icons.schedule, 'Working Hours', '09:00 AM – 05:30 PM (Standard)'),
                 ]),
                 const SizedBox(height: 16),
                 _buildInfoSection('CONTACT INFORMATION', [

@@ -12,10 +12,17 @@ export class CompanyIsolationGuard implements CanActivate {
     }
 
     // Super Admin can access all companies
-    if (user.isSuperAdmin || user.roles?.includes('SUPER_ADMIN')) {
-      // If Super Admin provided a company query/header or param, bind it
+    if (user.isSuperAdmin || user.roles?.includes('SUPER_ADMIN') || user.roles?.includes('HR_ADMIN')) {
+      const explicitCompany =
+        request.headers['x-company-id'] ||
+        request.query?.companyId ||
+        request.params?.companyId ||
+        request.body?.companyId;
+
       request.activeCompanyId =
-        request.query?.companyId || request.params?.companyId || request.body?.companyId || null;
+        explicitCompany === 'ALL'
+          ? null
+          : explicitCompany || user.companyId || null;
       return true;
     }
 

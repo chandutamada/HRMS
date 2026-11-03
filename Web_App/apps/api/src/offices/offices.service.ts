@@ -21,9 +21,10 @@ export class OfficesService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(user: AuthenticatedUser, companyIdQuery?: string) {
-    const targetCompanyId = user.isSuperAdmin
-      ? companyIdQuery || user.companyId
-      : user.companyId;
+    const targetCompanyId =
+      companyIdQuery ||
+      user.activeCompanyId ||
+      (user.isSuperAdmin ? undefined : user.companyId);
 
     const whereClause: any = {};
     if (targetCompanyId) {

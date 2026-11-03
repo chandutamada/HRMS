@@ -3,15 +3,20 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TrackingGateway } from '../tracking/tracking.gateway';
 import { CreateCircularDto } from './dto/circular.dto';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator';
 import { CircularStatus, NotificationType } from '@prisma/client';
 
 @Injectable()
 export class CircularsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private trackingGateway?: TrackingGateway,
+  ) {}
 
   async create(dto: CreateCircularDto, user: AuthenticatedUser) {
     if (!dto.targetCompanyCodes || dto.targetCompanyCodes.length === 0) {
@@ -80,6 +85,26 @@ export class CircularsService {
 
       return created;
     });
+
+    if (this.trackingGateway && dto.status === CircularStatus.PUBLISHED) {
+      try {
+        const payload = {
+          id: circular.id,
+          title: circular.title,
+          content: circular.content,
+          published_at: circular.publishedAt,
+          requires_acknowledgement: circular.requiresAcknowledgement,
+        };
+        this.trackingGateway.server?.emit('circular:new', payload);
+        this.trackingGateway.server?.emit('notification:new', {
+          title: `New Circular: ${circular.title}`,
+          message: circular.content.slice(0, 150),
+          type: 'CIRCULAR',
+          referenceId: circular.id,
+          created_at: new Date().toISOString(),
+        });
+      } catch (_) {}
+    }
 
     return circular;
   }
