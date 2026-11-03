@@ -8,8 +8,7 @@ HR-APPLICATION/
 ├── Web_App/                   <-- Standalone Next.js Web Portal, NestJS API & Database
 ├── docs/                      <-- System Architecture, Database Design & API Documentation
 ├── RUN_WEBPAGE.bat            <-- 1-Click Launcher to run the Webpage & Backend API
-├── RUN_ANDROID.bat            <-- 1-Click Launcher to start Android Studio & Port Forwarding
-└── _archive/                  <-- Archived legacy monorepo & scratch tools
+└── RUN_ANDROID.bat            <-- 1-Click Launcher to start Android Studio & Port Forwarding
 ```
 
 ---

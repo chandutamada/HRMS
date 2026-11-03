@@ -71,3 +71,15 @@ yarn-error.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Executables & Large Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Archived Legacy Code & Scratch Folders
+_archive/
+scratch/
+**/scratch/
+
