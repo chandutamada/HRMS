@@ -47,10 +47,29 @@ class TransactionsScreen extends StatelessWidget {
           ),
 
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: _buildTransactionList(),
-            ),
+            child: _buildTransactionList().isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey.shade400),
+                        const SizedBox(height: 12),
+                        Text(
+                          'No transactions recorded',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Transactions synchronized with HR will show here.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: _buildTransactionList(),
+                  ),
           ),
         ],
       ),
@@ -105,25 +124,8 @@ class TransactionsScreen extends StatelessWidget {
         ),
       ];
     } else {
-      // OUT_ON_DUTY
-      return [
-        _buildTransactionCard(
-          title: 'Field Flight Mission • 6.45 KM',
-          date: '15 Sep 2026, 11:00 AM – 01:30 PM',
-          status: 'COMPLETED',
-          statusColor: const Color(0xFF2563EB),
-          subtitle: 'Client: Hitech Solutions Pvt. Ltd.',
-          details: '12 Route points recorded • 2 Checkpoint dwell stops',
-        ),
-        _buildTransactionCard(
-          title: 'Outdoor Client Inspection • 4.20 KM',
-          date: '11 Sep 2026, 02:00 PM – 04:30 PM',
-          status: 'COMPLETED',
-          statusColor: const Color(0xFF2563EB),
-          subtitle: 'Client: Aerospace Park Devanahalli',
-          details: 'Perimeter survey completed • Synced to HR portal',
-        ),
-      ];
+      // OUT_ON_DUTY - No dummy transactions
+      return [];
     }
   }
 

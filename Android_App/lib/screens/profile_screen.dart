@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
+import 'leave_tab.dart';
+import 'attendance_tab.dart';
+import 'payslips_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -263,33 +266,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final employee = _userData['employee'] as Map<String, dynamic>? ?? {};
-    final fullName = employee['fullName'] ?? employee['firstName'] ?? _userData['name'] ?? 'Rajesh Sharma';
-    final email = employee['email'] ?? _userData['email'] ?? 'employee@company.internal';
-    final phone = employee['phone'] ?? '+91 9845012345';
-    final empCode = employee['employeeCode'] ?? _userData['employeeCode'] ?? 'SB-001';
+    final fullName = employee['fullName'] ?? employee['firstName'] ?? _userData['name'] ?? (_userData['email']?.toString().split('@')[0] ?? 'Employee');
+    final email = employee['email'] ?? _userData['email'] ?? '—';
+    final phone = employee['phone']?.toString().isNotEmpty == true ? employee['phone'].toString() : '—';
+    final empCode = employee['employeeCode'] ?? _userData['employeeCode'] ?? '—';
 
-    String designation = 'Software Developer';
+    String designation = '—';
     final desigVal = employee['designation'];
     if (desigVal is Map) {
-      designation = desigVal['title']?.toString() ?? desigVal['name']?.toString() ?? 'Software Developer';
+      designation = desigVal['title']?.toString() ?? desigVal['name']?.toString() ?? '—';
     } else if (desigVal != null && desigVal.toString().isNotEmpty) {
       designation = desigVal.toString();
     }
 
-    String department = 'Engineering & Technology';
+    String department = '—';
     final deptVal = employee['department'];
     if (deptVal is Map) {
-      department = deptVal['name']?.toString() ?? deptVal['title']?.toString() ?? 'Engineering & Technology';
+      department = deptVal['name']?.toString() ?? deptVal['title']?.toString() ?? '—';
     } else if (deptVal != null && deptVal.toString().isNotEmpty) {
       department = deptVal.toString();
     }
 
-    String office = 'Superbee Aeronautics HQ';
-    final officeVal = employee['office'];
+    String office = '—';
+    final officeVal = employee['office'] ?? employee['officeLocation'];
     if (officeVal is Map) {
-      office = officeVal['name']?.toString() ?? 'Superbee Aeronautics HQ';
+      office = officeVal['name']?.toString() ?? '—';
     } else if (officeVal != null && officeVal.toString().isNotEmpty) {
       office = officeVal.toString();
+    }
+
+    final shiftVal = employee['shift'];
+    String workingHours = '09:00 AM – 05:30 PM (Standard)';
+    if (shiftVal is Map) {
+      final sStart = shiftVal['startTime']?.toString();
+      final sEnd = shiftVal['endTime']?.toString();
+      final sName = shiftVal['name']?.toString();
+      if (sStart != null && sEnd != null) {
+        workingHours = '$sStart – $sEnd (${sName ?? "Standard"})';
+      }
     }
 
     final resolvedAvatar = ApiService.resolveImageUrl(_avatarUrl);
@@ -447,19 +461,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildProfileTile(Icons.corporate_fare, 'Department', department.toString()),
                   _buildProfileTile(Icons.work_outline, 'Designation', designation.toString()),
                   _buildProfileTile(Icons.location_city, 'Base Office', office.toString()),
-                  _buildProfileTile(Icons.schedule, 'Working Hours', '09:00 AM – 05:30 PM (Standard)'),
+                  _buildProfileTile(Icons.schedule, 'Working Hours', workingHours),
                 ]),
                 const SizedBox(height: 16),
                 _buildInfoSection('CONTACT INFORMATION', [
                   _buildProfileTile(Icons.email_outlined, 'Official Email', email.toString()),
                   _buildProfileTile(Icons.phone_outlined, 'Mobile Number', phone.toString()),
-                  _buildProfileTile(Icons.home_outlined, 'Location', 'Bangalore Manufacturing Unit'),
                 ]),
                 const SizedBox(height: 16),
-                _buildInfoSection('STATUTORY DETAILS', [
-                  _buildProfileTile(Icons.account_balance, 'Bank Name', 'State Bank of India'),
-                  _buildProfileTile(Icons.credit_card, 'PAN Card', 'ABCDE1234F'),
-                  _buildProfileTile(Icons.verified_user_outlined, 'PF / UAN Number', '100987654321'),
+                _buildInfoSection('HR RECORDS & SERVICES', [
+                  _buildNavTile(
+                    Icons.event_note_rounded,
+                    'Leaves & Absence',
+                    'Apply leave, track balances & HR approvals',
+                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => LeaveTab(userData: _userData))),
+                  ),
+                  const Divider(height: 16, color: Color(0xFFF1F5F9)),
+                  _buildNavTile(
+                    Icons.access_time_rounded,
+                    'Attendance Logs',
+                    'Daily punch logs, geofence status & regularization',
+                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => AttendanceTab(userData: _userData))),
+                  ),
+                  const Divider(height: 16, color: Color(0xFFF1F5F9)),
+                  _buildNavTile(
+                    Icons.receipt_long_rounded,
+                    'Payslips & Salary',
+                    'Official monthly salary statements & PDF download',
+                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PayslipsScreen())),
+                  ),
                 ]),
               ],
             ),
@@ -523,6 +553,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNavTile(IconData icon, String title, String subtitle, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, size: 18, color: const Color(0xFF4F46E5)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 18, color: Color(0xFF94A3B8)),
+          ],
+        ),
       ),
     );
   }

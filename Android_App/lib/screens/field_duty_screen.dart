@@ -20,65 +20,11 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
   // Selected task filter tab in Task view
   String _taskFilter = 'ALL_TASKS';
 
-  // Tasks mock list
-  final List<Map<String, dynamic>> _tasks = [
-    {
-      'title': 'Onsite Demo - Hitech Solutions Pvt. Ltd.',
-      'time': '11:00 AM',
-      'location': 'India Office / Electronic City Phase 1',
-      'assigned': 'You',
-      'status': 'Checked In',
-      'notes': 'Demonstrate enterprise drone surveillance features',
-    },
-    {
-      'title': 'Payment Collection - ABC Traders Pvt. Ltd.',
-      'time': '02:30 PM',
-      'location': 'Velachery Main Road, Sector 4',
-      'assigned': 'You',
-      'status': 'Pending',
-      'notes': 'Collect quarterly maintenance invoice cheque',
-    },
-    {
-      'title': 'Client Site Survey - Aerospace Park',
-      'time': '04:15 PM',
-      'location': 'Devanahalli Defence Zone',
-      'assigned': 'Field Team Alpha',
-      'status': 'Scheduled',
-      'notes': 'Initial perimeter survey for automated drone docks',
-    },
-  ];
+  // Tasks list (dynamically populated)
+  final List<Map<String, dynamic>> _tasks = [];
 
-  // Daily timeline mock list
-  final List<Map<String, dynamic>> _activities = [
-    {
-      'time': '09:06 am',
-      'type': 'Logged In',
-      'color': const Color(0xFF16A34A),
-      'address': '14, 1st Street, ABC Complex Plaza, East 1st Main, GN Shetty Road..',
-      'notes': null,
-    },
-    {
-      'time': '10:56 am',
-      'type': 'Checked In',
-      'color': const Color(0xFF0284C7),
-      'address': '14, 1st Street, ABC Complex Plaza, GN Shetty Road..',
-      'notes': 'Onsite Demo - ABC Traders Pvt. Ltd.',
-    },
-    {
-      'time': '12:56 pm',
-      'type': 'Checked Out',
-      'color': const Color(0xFFEA580C),
-      'address': '14, 1st Street, ABC Complex Plaza, GN Shetty Road..',
-      'notes': 'Onsite Demo - Completed',
-    },
-    {
-      'time': '09:41 pm',
-      'type': 'Logged Out',
-      'color': const Color(0xFFDC2626),
-      'address': '14, 1st Street, ABC Complex Plaza, East 1st Main, GN Shetty Road..',
-      'notes': null,
-    },
-  ];
+  // Daily timeline activity list (dynamically populated)
+  final List<Map<String, dynamic>> _activities = [];
 
   @override
   void initState() {
@@ -202,7 +148,7 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
   // 1. LOCATION-BASED ATTENDANCE (Panel 1 of Image 5)
   Widget _buildAttendanceView() {
     final employee = widget.userData['employee'] as Map<String, dynamic>? ?? {};
-    final fullName = employee['fullName'] ?? 'Rajesh Sharma';
+    final fullName = employee['fullName'] ?? employee['firstName'] ?? widget.userData['email'] ?? 'Employee';
 
     return Stack(
       children: [
@@ -479,9 +425,28 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
 
                 // Tasks List
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: _tasks.length,
-                    itemBuilder: (ctx, idx) {
+                  child: _tasks.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.assignment_outlined, size: 48, color: Colors.grey.shade400),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No field tasks assigned currently',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'New tasks assigned by supervisor will appear here.',
+                                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: _tasks.length,
+                          itemBuilder: (ctx, idx) {
                       final task = _tasks[idx];
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -663,11 +628,32 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _activities.length,
-              itemBuilder: (ctx, idx) {
+            child: _activities.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Column(
+                        children: [
+                          Icon(Icons.timeline_rounded, size: 40, color: Colors.grey.shade400),
+                          const SizedBox(height: 10),
+                          Text(
+                            'No timeline activities recorded today',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Exact punch time and GPS location address will display here beside time.',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _activities.length,
+                    itemBuilder: (ctx, idx) {
                 final act = _activities[idx];
                 final isLast = idx == _activities.length - 1;
 

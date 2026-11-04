@@ -881,18 +881,6 @@ class _HomeTabState extends State<HomeTab> {
                         },
                       ),
                       _buildQuickActionCard(
-                        title: 'Out On Duty',
-                        icon: Icons.location_on_rounded,
-                        iconColor: const Color(0xFF0284C7),
-                        bgColor: const Color(0xFFE0F2FE),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => FieldDutyScreen(userData: widget.userData)),
-                          );
-                        },
-                      ),
-                      _buildQuickActionCard(
                         title: 'My Calendar',
                         icon: Icons.calendar_today_rounded,
                         iconColor: const Color(0xFF059669),

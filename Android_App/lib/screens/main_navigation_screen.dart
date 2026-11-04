@@ -12,15 +12,10 @@ class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({
     super.key,
     this.userData = const {
-      'employeeCode': 'SB-001',
-      'email': 'rajesh.sharma@superbee.internal',
+      'employeeCode': '',
+      'email': '',
       'roles': ['EMPLOYEE'],
-      'company': {'code': 'SUPERBEE', 'name': 'Superbee Aeronautics Pvt. Ltd.'},
-      'employee': {
-        'fullName': 'Rajesh Sharma',
-        'designation': {'title': 'Senior Software Engineer'},
-        'department': {'name': 'Engineering'}
-      }
+      'employee': {}
     },
   });
 

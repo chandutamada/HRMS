@@ -515,7 +515,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                                     const SizedBox(height: 12),
                                     _buildDetailRow('Employee No', employeeNo),
                                     const SizedBox(height: 8),
-                                    _buildDetailRow('Name', employeeName.isNotEmpty ? employeeName : 'Rajesh Sharma'),
+                                    _buildDetailRow('Name', employeeName.isNotEmpty ? employeeName : '—'),
                                     const SizedBox(height: 8),
                                     _buildDetailRow('Bank', bankName),
                                     const SizedBox(height: 8),

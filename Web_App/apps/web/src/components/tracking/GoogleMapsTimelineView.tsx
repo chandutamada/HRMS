@@ -40,6 +40,7 @@ interface StopItem {
   id: string;
   name: string;
   tag: string;
+  timestamp?: string;
   timeRange: string;
   durationText: string;
   address: string;
@@ -256,10 +257,9 @@ export default function GoogleMapsTimelineView({
                 return {
                   ...stop,
                   address: realAddr,
-                  // If name was default fallback, make it descriptive of real area
-                  name: stop.name.includes('Bangalore') && !stop.isOffice
-                    ? 'Field Origin / Departure Point'
-                    : stop.name,
+                  name: stop.name && !stop.name.includes('Bangalore') && !stop.name.includes('Departure Point') && !stop.name.includes('Field Waypoint')
+                    ? stop.name
+                    : realAddr,
                 };
               } catch {
                 return stop;
@@ -966,6 +966,9 @@ export default function GoogleMapsTimelineView({
                 timelineData.stops.map((stop, idx) => {
                   const isSelected = activeStopIndex === stop.index;
                   const transit = timelineData.transits?.[idx];
+                  const exactTime = stop.timestamp
+                    ? new Date(stop.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+                    : (stop.timeRange.split(' – ')[0] || stop.timeRange.split(' - ')[0] || stop.timeRange);
 
                   return (
                     <div key={stop.id} className="relative">
@@ -979,21 +982,8 @@ export default function GoogleMapsTimelineView({
                         }`}
                       >
                         <div className="flex items-start gap-3">
-                          {/* Arrival / Departure & Duration */}
-                          <div className="w-20 shrink-0 text-right">
-                            <span className="block text-xs font-black text-slate-800">
-                              {stop.timeRange.split(' – ')[0] || stop.timeRange}
-                            </span>
-                            <span className="block text-[10px] text-slate-400 font-medium">
-                              {stop.timeRange.split(' – ')[1] || ''}
-                            </span>
-                            <span className="inline-block mt-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-600">
-                              {stop.durationText}
-                            </span>
-                          </div>
-
                           {/* Distinct Visual Node & Dotted/Solid Line */}
-                          <div className="flex flex-col items-center self-stretch">
+                          <div className="flex flex-col items-center self-stretch pt-0.5">
                             <div
                               className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black text-white shadow-xs ${
                                 stop.isOffice ? 'bg-emerald-600' : 'bg-[#0288d1]'
@@ -1006,27 +996,37 @@ export default function GoogleMapsTimelineView({
                             )}
                           </div>
 
-                          {/* Landmark Name & Resolved Street Address */}
+                          {/* Exact Time & User Location Address beside the time */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${
-                                  stop.isOffice
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-blue-100 text-blue-700'
-                                }`}
-                              >
-                                {stop.tag}
+                            {/* Time & Tag */}
+                            <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-black text-slate-900 font-mono border border-slate-200">
+                                  <Clock className="h-3 w-3 text-[#0288d1]" />
+                                  {exactTime}
+                                </span>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${
+                                    stop.isOffice
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-blue-100 text-blue-700'
+                                  }`}
+                                >
+                                  {stop.tag}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                {stop.durationText}
                               </span>
                             </div>
 
-                            <h3 className="text-xs font-black text-slate-900 group-hover:text-[#0288d1] transition">
-                              {stop.name}
-                            </h3>
-
-                            <p className="mt-1 text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
-                              {stop.address}
-                            </p>
+                            {/* Location Address right beside / with the time */}
+                            <div className="mt-1.5 flex items-start gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 text-rose-500 shrink-0 mt-0.5" />
+                              <p className="text-xs font-bold text-slate-800 leading-snug group-hover:text-[#0288d1] transition">
+                                {stop.address || stop.name}
+                              </p>
+                            </div>
 
                             <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400 font-mono">
                               <span>
@@ -1042,7 +1042,7 @@ export default function GoogleMapsTimelineView({
 
                       {/* Transit connecting segment between stops */}
                       {transit && (
-                        <div className="my-2 ml-28 flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+                        <div className="my-2 ml-10 flex items-center gap-2 text-[11px] text-slate-500 font-medium">
                           <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-100 text-[#0288d1]">
                             <Car className="h-3.5 w-3.5" />
                           </div>

@@ -60,25 +60,6 @@ class ActionTab extends StatelessWidget {
                   );
                 },
               ),
-              const SizedBox(height: 12),
-
-              _buildActionCard(
-                context,
-                icon: Icons.location_city,
-                iconColor: const Color(0xFF7C3AED),
-                title: 'On-Duty / Drone Field Work',
-                subtitle: 'Log on-site client visit or drone field operations',
-                badgeText: 'GPS Logged',
-                badgeColor: const Color(0xFFEDE9FE),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => LiveTrackingScreen(userData: userData),
-                    ),
-                  );
-                },
-              ),
               const SizedBox(height: 24),
 
               const Text(

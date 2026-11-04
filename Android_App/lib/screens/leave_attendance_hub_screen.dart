@@ -121,18 +121,6 @@ class LeaveAttendanceHubScreen extends StatelessWidget {
                         },
                       ),
                       _buildHubCard(
-                        title: 'Out On Duty',
-                        icon: Icons.business_center_rounded,
-                        iconColor: const Color(0xFFD97706),
-                        bgColor: const Color(0xFFFEF3C7),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => FieldDutyScreen(userData: userData)),
-                          );
-                        },
-                      ),
-                      _buildHubCard(
                         title: 'My Attendance Transactions',
                         icon: Icons.receipt_long_rounded,
                         iconColor: const Color(0xFF0284C7),
@@ -162,24 +150,6 @@ class LeaveAttendanceHubScreen extends StatelessWidget {
                               builder: (_) => TransactionsScreen(
                                 title: 'My Leave Transactions',
                                 type: 'LEAVE',
-                                userData: userData,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildHubCard(
-                        title: 'My Out On Duty Transactions',
-                        icon: Icons.alt_route_rounded,
-                        iconColor: const Color(0xFF0284C7),
-                        bgColor: const Color(0xFFE0F2FE),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TransactionsScreen(
-                                title: 'My Out On Duty Transactions',
-                                type: 'OUT_ON_DUTY',
                                 userData: userData,
                               ),
                             ),
@@ -248,20 +218,6 @@ class LeaveAttendanceHubScreen extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (_) => TeamManagementScreen(title: 'Team Attendance Regularisation', section: 'REGULARISATION', userData: userData),
-                            ),
-                          );
-                        },
-                      ),
-                      _buildHubCard(
-                        title: 'My Team Out On Duty',
-                        icon: Icons.location_city_rounded,
-                        iconColor: const Color(0xFF0284C7),
-                        bgColor: const Color(0xFFE0F2FE),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => TeamManagementScreen(title: 'Team Out On Duty', section: 'OUT_ON_DUTY', userData: userData),
                             ),
                           );
                         },

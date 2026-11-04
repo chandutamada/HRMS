@@ -955,6 +955,8 @@ export class TrackingService {
       hasTravelData: false,
     };
 
+    const timezone = employee.officeLocation?.timezone || 'Asia/Kolkata';
+
     if (hasCheckpoints && session) {
       // Use real recorded checkpoints
       stops = session.checkpoints.map((cp, idx) => {
@@ -967,12 +969,26 @@ export class TrackingService {
             ) <= (employee.officeLocation.radiusMeters || 100)
           : false;
 
+        const arriveStr = new Date(cp.arrivedAt).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: timezone,
+        });
+        const departStr = cp.departedAt
+          ? new Date(cp.departedAt).toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: timezone,
+            })
+          : null;
+
         return {
           index: idx + 1,
           id: cp.id,
-          name: cp.notes || (isNearOffice ? employee.officeLocation!.name : `Field Waypoint ${idx + 1}`),
-          tag: isNearOffice ? 'OFFICE PERIMETER' : (idx === 0 ? 'DEPARTED' : 'I WAS HERE'),
-          timeRange: `${new Date(cp.arrivedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}${cp.departedAt ? ' - ' + new Date(cp.departedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ' - Present'}`,
+          name: cp.notes || (isNearOffice ? employee.officeLocation!.name : `Waypoint ${idx + 1}`),
+          tag: isNearOffice ? 'OFFICE PERIMETER' : (idx === 0 ? 'DEPARTED' : 'WAYPOINT'),
+          timestamp: cp.arrivedAt.toISOString(),
+          timeRange: departStr ? `${arriveStr} - ${departStr}` : arriveStr,
           durationText: cp.departedAt
             ? `${Math.max(1, Math.round((new Date(cp.departedAt).getTime() - new Date(cp.arrivedAt).getTime()) / (1000 * 60)))} min`
             : 'Active Stay',
@@ -1000,7 +1016,7 @@ export class TrackingService {
       routePolyline = session.routePoints.map((pt) => [Number(pt.latitude), Number(pt.longitude)]);
 
       tripSummary = {
-        title: `Field Mission Route • ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+        title: `Field Route • ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
         totalPlaces: stops.length,
         totalDistanceKm: Number((session.distanceKm || 0).toFixed(2)),
         totalDurationText: `${Math.max(1, Math.round((new Date(session.updatedAt).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)))} min`,
@@ -1010,65 +1026,104 @@ export class TrackingService {
       };
     } else if (hasRoutePoints && session) {
       // Real route points exist without manual checkpoints: derive real stops from actual points
-      const firstPt = session.routePoints[0];
-      const lastPt = session.routePoints[session.routePoints.length - 1];
-      const dist = calculateHaversineDistance(firstPt.latitude, firstPt.longitude, lastPt.latitude, lastPt.longitude) / 1000;
+      const allPoints = session.routePoints;
+      const selectedPoints: typeof allPoints = [];
+      selectedPoints.push(allPoints[0]);
 
-      const isStartNearOffice = employee.officeLocation
-        ? calculateHaversineDistance(
-            Number(firstPt.latitude),
-            Number(firstPt.longitude),
-            Number(employee.officeLocation.latitude),
-            Number(employee.officeLocation.longitude)
-          ) <= (employee.officeLocation.radiusMeters || 100)
-        : false;
+      for (let i = 1; i < allPoints.length - 1; i++) {
+        const prev = selectedPoints[selectedPoints.length - 1];
+        const curr = allPoints[i];
+        const dist = calculateHaversineDistance(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+        const timeDiffMins = (new Date(curr.timestamp).getTime() - new Date(prev.timestamp).getTime()) / (1000 * 60);
+        if (dist >= 50 || timeDiffMins >= 15) {
+          selectedPoints.push(curr);
+        }
+      }
 
-      stops = [
-        {
-          index: 1,
-          id: 'start-point',
-          name: isStartNearOffice ? employee.officeLocation!.name : 'Field Origin / Departure Point',
-          tag: isStartNearOffice ? 'OFFICE PERIMETER' : 'DEPARTED',
-          timeRange: new Date(firstPt.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          durationText: 'Departure',
-          address: `${Number(firstPt.latitude).toFixed(5)}, ${Number(firstPt.longitude).toFixed(5)}`,
-          latitude: Number(firstPt.latitude),
-          longitude: Number(firstPt.longitude),
-          isOffice: isStartNearOffice,
-        },
-        {
-          index: 2,
-          id: 'end-point',
-          name: 'Latest Field Waypoint',
-          tag: 'CURRENT POSITION',
-          timeRange: new Date(lastPt.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          durationText: 'Latest Recorded Pin',
-          address: `${Number(lastPt.latitude).toFixed(5)}, ${Number(lastPt.longitude).toFixed(5)}`,
-          latitude: Number(lastPt.latitude),
-          longitude: Number(lastPt.longitude),
-          isOffice: false,
-        },
-      ];
+      if (allPoints.length > 1) {
+        const last = allPoints[allPoints.length - 1];
+        if (selectedPoints[selectedPoints.length - 1].id !== last.id) {
+          selectedPoints.push(last);
+        }
+      }
 
-      transits = [
-        {
-          fromStopIndex: 1,
-          toStopIndex: 2,
+      stops = selectedPoints.map((pt, idx) => {
+        const isStart = idx === 0;
+        const isEnd = idx === selectedPoints.length - 1;
+        const isNearOffice = employee.officeLocation
+          ? calculateHaversineDistance(
+              Number(pt.latitude),
+              Number(pt.longitude),
+              Number(employee.officeLocation.latitude),
+              Number(employee.officeLocation.longitude)
+            ) <= (employee.officeLocation.radiusMeters || 100)
+          : false;
+
+        const exactTime = new Date(pt.timestamp).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: timezone,
+        });
+
+        let tag = 'WAYPOINT';
+        let name = isNearOffice ? (employee.officeLocation?.name || 'Office') : `Waypoint ${idx + 1}`;
+        if (isStart) {
+          tag = isNearOffice ? 'OFFICE PERIMETER' : 'DEPARTED';
+          name = isNearOffice ? employee.officeLocation!.name : 'Initial Punch / Departure';
+        } else if (isEnd) {
+          tag = 'CURRENT POSITION';
+          name = isNearOffice ? employee.officeLocation!.name : 'Latest Waypoint';
+        }
+
+        return {
+          index: idx + 1,
+          id: pt.id,
+          name,
+          tag,
+          timestamp: pt.timestamp.toISOString(),
+          timeRange: exactTime,
+          durationText: isStart ? 'Departure' : (isEnd ? 'Latest Pin' : 'Recorded Pin'),
+          address: `${Number(pt.latitude).toFixed(5)}, ${Number(pt.longitude).toFixed(5)}`,
+          latitude: Number(pt.latitude),
+          longitude: Number(pt.longitude),
+          isOffice: isNearOffice,
+        };
+      });
+
+      // Calculate real transits between actual stops
+      for (let i = 0; i < stops.length - 1; i++) {
+        const s1 = stops[i];
+        const s2 = stops[i + 1];
+        const dist = calculateHaversineDistance(s1.latitude, s1.longitude, s2.latitude, s2.longitude) / 1000;
+        const durMins = Math.max(1, Math.round((new Date(selectedPoints[i + 1].timestamp).getTime() - new Date(selectedPoints[i].timestamp).getTime()) / (1000 * 60)));
+        transits.push({
+          fromStopIndex: s1.index,
+          toStopIndex: s2.index,
           mode: dist > 1.5 ? 'DRIVING' : 'WALKING',
-          distanceKm: Number(dist.toFixed(1)),
-          durationText: `${Math.max(2, Math.round(dist * 3))} min`,
-        },
-      ];
+          distanceKm: Number(dist.toFixed(2)),
+          durationText: `${durMins} min`,
+        });
+      }
 
       routePolyline = session.routePoints.map((pt) => [Number(pt.latitude), Number(pt.longitude)]);
 
+      const firstTime = selectedPoints[0]
+        ? new Date(selectedPoints[0].timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: timezone })
+        : null;
+      const lastTime = selectedPoints[selectedPoints.length - 1]
+        ? new Date(selectedPoints[selectedPoints.length - 1].timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: timezone })
+        : null;
+      const totalDur = selectedPoints.length > 1
+        ? Math.max(1, Math.round((new Date(selectedPoints[selectedPoints.length - 1].timestamp).getTime() - new Date(selectedPoints[0].timestamp).getTime()) / (1000 * 60)))
+        : 1;
+
       tripSummary = {
-        title: `Field Mission Route • ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+        title: `Field Route • ${targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
         totalPlaces: stops.length,
-        totalDistanceKm: Number((session.distanceKm || dist).toFixed(2)),
-        totalDurationText: `${Math.max(1, Math.round((new Date(lastPt.timestamp).getTime() - new Date(firstPt.timestamp).getTime()) / (1000 * 60)))} min`,
-        startTime: stops[0]?.timeRange || null,
-        endTime: stops[1]?.timeRange || null,
+        totalDistanceKm: Number((session.distanceKm || 0).toFixed(2)),
+        totalDurationText: `${totalDur} min`,
+        startTime: firstTime,
+        endTime: lastTime,
         hasTravelData: true,
       };
     } else {

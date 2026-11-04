@@ -77,6 +77,7 @@ Thumbs.db
 *.dll
 *.so
 *.dylib
+*.apk
 
 # Archived Legacy Code & Scratch Folders
 _archive/
