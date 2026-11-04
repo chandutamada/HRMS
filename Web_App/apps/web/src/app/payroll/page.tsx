@@ -109,6 +109,7 @@ export default function PayrollPage() {
   const [dTds, setDTds] = useState<string>('0');
   const [dAdv, setDAdv] = useState<string>('0');
   const [dOtherDed, setDOtherDed] = useState<string>('0');
+  const [dLopDays, setDLopDays] = useState<string>('0');
   const [salError, setSalError] = useState('');
 
   // Run Payroll Form State
@@ -125,7 +126,58 @@ export default function PayrollPage() {
     try {
       const empRes = await api.get<{ items: any[] }>('/employees', { limit: 200 });
       const empList = empRes.items || [];
-      setEmployees(empList);
+
+      // Attempt to load monthly overview to get unapproved absences/LOP strictly per employee
+      try {
+        const overviewRes: any = await api.get('/payroll/monthly-overview', {
+          year: 2026,
+          month: 10,
+          companyId: activeCompany?.id,
+        });
+
+        if (overviewRes?.employees && Array.isArray(overviewRes.employees)) {
+          const enrichedEmps = empList.map((emp) => {
+            const row = overviewRes.employees.find(
+              (r: any) => r.employeeId === emp.id || r.employeeCode === emp.employeeCode
+            );
+            return row ? { ...emp, lopDays: row.lopDays || 0 } : emp;
+          });
+          setEmployees(enrichedEmps);
+
+          const loadedSalaries: Record<string, any> = {};
+          for (const row of overviewRes.employees) {
+            if (row.basicSalary) {
+              const gross = row.grossEarnings || row.basicSalary;
+              const lopAmount = Math.round((gross / 26) * (row.lopDays || 0));
+              loadedSalaries[row.employeeId] = {
+                employee_id: row.employeeId,
+                employee_name: row.fullName,
+                employee_code: row.employeeCode,
+                basic: row.basicSalary,
+                hra: row.hra,
+                da: row.da,
+                special_allowance: row.specialAllowance,
+                gross_ctc: gross,
+                pf_applicable: row.epf > 0,
+                pf_employee_percent: 12,
+                professional_tax: row.professionalTax || 200,
+                tds_monthly: row.tds || 0,
+                lop_days: row.lopDays || 0,
+                lop_amount: lopAmount,
+                net_pay: row.netSalary,
+                is_active: true,
+              };
+            }
+          }
+          if (Object.keys(loadedSalaries).length > 0) {
+            setSalaries((prev) => ({ ...loadedSalaries, ...prev }));
+          }
+        } else {
+          setEmployees(empList);
+        }
+      } catch (e) {
+        setEmployees(empList);
+      }
 
       // Pre-set default runs
       setRuns([
@@ -175,13 +227,15 @@ export default function PayrollPage() {
   const calculatedDeductions = useMemo(() => {
     const gross = calculatedEarnings.gross;
     const basic = calculatedEarnings.basic;
+    const lopDays = g(dLopDays);
+    const lopAmount = Math.round((gross / 26) * lopDays);
 
     if (dConsultant) {
       const tds = (gross * g(dTdsPct)) / 100;
       const adv = g(dAdv);
       const oth = g(dOtherDed);
-      const total = tds + adv + oth;
-      return { pfEmp: 0, pfEr: 0, esiEmp: 0, esiEr: 0, pt: 0, tds, adv, oth, total };
+      const total = tds + adv + oth + lopAmount;
+      return { pfEmp: 0, pfEr: 0, esiEmp: 0, esiEr: 0, pt: 0, tds, adv, oth, lopDays, lopAmount, total };
     }
 
     const pfBase = Math.min(basic, 15000);
@@ -194,9 +248,9 @@ export default function PayrollPage() {
     const adv = g(dAdv);
     const oth = g(dOtherDed);
 
-    const total = pfEmp + esiEmp + pt + tds + adv + oth;
-    return { pfEmp, pfEr, esiEmp, esiEr, pt, tds, adv, oth, total };
-  }, [calculatedEarnings, dConsultant, dTdsPct, dPf, dPfEmp, dPfEr, dEsi, dEsiEmp, dEsiEr, dPt, dTds, dAdv, dOtherDed]);
+    const total = pfEmp + esiEmp + pt + tds + adv + oth + lopAmount;
+    return { pfEmp, pfEr, esiEmp, esiEr, pt, tds, adv, oth, lopDays, lopAmount, total };
+  }, [calculatedEarnings, dConsultant, dTdsPct, dPf, dPfEmp, dPfEr, dEsi, dEsiEmp, dEsiEr, dPt, dTds, dAdv, dOtherDed, dLopDays]);
 
   const estimatedNetPay = Math.max(0, calculatedEarnings.gross - calculatedDeductions.total);
 
@@ -237,6 +291,10 @@ export default function PayrollPage() {
     setDTds(s.tds_monthly ? String(s.tds_monthly) : '0');
     setDAdv(s.advance_deduction ? String(s.advance_deduction) : '0');
     setDOtherDed(s.other_deduction ? String(s.other_deduction) : '0');
+
+    // Automatically load employee's specific LOP days (from salary or attendance absents)
+    const initLop = s.lop_days !== undefined ? String(s.lop_days) : (emp.lopDays !== undefined ? String(emp.lopDays) : '0');
+    setDLopDays(initLop);
 
     setSalError('');
     setShowSalaryModal(true);
@@ -283,6 +341,9 @@ export default function PayrollPage() {
       tds_monthly: g(dTds),
       advance_deduction: g(dAdv),
       other_deduction: g(dOtherDed),
+      lop_days: g(dLopDays),
+      lop_amount: calculatedDeductions.lopAmount,
+      total_deductions: calculatedDeductions.total,
       net_pay: estimatedNetPay,
       is_active: true,
     };
@@ -517,6 +578,84 @@ export default function PayrollPage() {
     }, 1000);
   };
 
+  // Publish Payslips to Mobile Dashboards
+  const handlePublishPayslips = async (r: any) => {
+    try {
+      setIsProcessing(true);
+      await api.put('/payroll/finalize-all', {
+        year: r.year,
+        month: r.month,
+        companyId: activeCompany?.id,
+      });
+      setRuns((prev) =>
+        prev.map((item) => (item.id === r.id ? { ...item, status: 'finalized' } : item))
+      );
+      alert(`Success! Payslips for ${MONTH_NAMES[r.month]} ${r.year} published to all employee mobile dashboards.`);
+    } catch (err: any) {
+      console.error('Failed to publish payslips:', err);
+      alert('Failed to publish payslips to mobile app: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Finalize Run
+  const handleFinalizeRun = async (r: any) => {
+    try {
+      setIsProcessing(true);
+      await api.put('/payroll/finalize-all', {
+        year: r.year,
+        month: r.month,
+        companyId: activeCompany?.id,
+      });
+      setRuns((prev) =>
+        prev.map((item) => (item.id === r.id ? { ...item, status: 'finalized' } : item))
+      );
+      alert(`Payroll finalized and published for ${MONTH_NAMES[r.month]} ${r.year}!`);
+    } catch (err: any) {
+      console.error('Failed to finalize payroll:', err);
+      alert('Failed to finalize payroll: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Publish current payslip to mobile
+  const handlePublishCurrentPayslip = async () => {
+    if (!currentPayslip || !psEmpId) return;
+    try {
+      setIsProcessing(true);
+      await api.post('/payroll/individual-generate', {
+        employeeId: psEmpId,
+        year: currentPayslip.year,
+        month: currentPayslip.month,
+        totalDays: currentPayslip.total_working_days,
+        paidDays: currentPayslip.days_present,
+        basicSalary: currentPayslip.basic,
+        hra: currentPayslip.hra,
+        hraEnabled: currentPayslip.hra > 0,
+        da: currentPayslip.da,
+        daEnabled: currentPayslip.da > 0,
+        medicalAllowance: currentPayslip.medical_allowance || 0,
+        medicalAllowanceEnabled: (currentPayslip.medical_allowance || 0) > 0,
+        otherAllowance: currentPayslip.special_allowance || 0,
+        otherAllowanceEnabled: (currentPayslip.special_allowance || 0) > 0,
+        epf: currentPayslip.pf_employee,
+        professionalTax: currentPayslip.professional_tax,
+        tds: currentPayslip.tds,
+        lopDays: currentPayslip.lop_days,
+        lopAmount: currentPayslip.lop_amount,
+        finalize: true,
+      });
+      alert(`Payslip for ${currentPayslip.employee_name} (${MONTH_NAMES[currentPayslip.month]} ${currentPayslip.year}) successfully published to mobile app!`);
+    } catch (err: any) {
+      console.error('Failed to publish individual payslip:', err);
+      alert('Failed to publish payslip: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Load Payslip
   useEffect(() => {
     if (psEmpId) {
@@ -528,9 +667,22 @@ export default function PayrollPage() {
         const hra = s ? s.hra : 12000;
         const da = s ? s.da : 3000;
         const allowances = s ? (s.ta || 0) + (s.special_allowance || 0) : 5000;
-        const gross = s ? s.gross_ctc : 50000;
-        const deductions = s ? (s.gross_ctc - s.net_pay) : 2000;
-        const net = s ? s.net_pay : 48000;
+        const gross = s ? s.gross_ctc : (basic + hra + da + allowances);
+
+        // Separate LOP strictly for this employee based on their records
+        const lopDays = s?.lop_days !== undefined ? Number(s.lop_days) : Number(emp.lopDays || 0);
+        const perDayRate = gross / 26;
+        const lopAmount = s?.lop_amount !== undefined ? Number(s.lop_amount) : Math.round(perDayRate * lopDays);
+
+        const pf = s ? (s.basic * (s.pf_employee_percent || 12) / 100) : 1800;
+        const pt = s?.professional_tax !== undefined ? Number(s.professional_tax) : 200;
+        const tds = s?.tds_monthly !== undefined ? Number(s.tds_monthly) : 0;
+        const deductions = s ? (s.gross_ctc - s.net_pay) : (pf + pt + tds + lopAmount);
+        const net = s ? s.net_pay : Math.max(0, gross - deductions);
+
+        const totalWorkingDays = 26;
+        const daysPresent = Math.max(0, totalWorkingDays - lopDays - 1);
+        const paidLeave = 1;
 
         setCurrentPayslip({
           company_name: activeCompany?.name || emp.company?.name || 'Superbee Aeronautics Private Limited',
@@ -540,20 +692,21 @@ export default function PayrollPage() {
           designation: emp.designation?.title || 'Flight Operations Lead',
           month: m,
           year: y,
-          total_working_days: 26,
-          days_present: 25,
-          days_leave_paid: 1,
-          lop_days: 0,
+          total_working_days: totalWorkingDays,
+          days_present: daysPresent,
+          days_leave_paid: paidLeave,
+          lop_days: lopDays,
+          lop_amount: lopAmount,
           basic,
           hra,
           da,
           ta: s ? s.ta : 2000,
           special_allowance: s ? s.special_allowance : 3000,
           gross_earnings: gross,
-          pf_employee: s ? (s.basic * (s.pf_employee_percent || 12) / 100) : 1800,
+          pf_employee: pf,
           esi_employee: 0,
-          professional_tax: 200,
-          tds: s ? s.tds_monthly : 0,
+          professional_tax: pt,
+          tds,
           total_deductions: deductions,
           pf_employer: 1800,
           esi_employer: 0,
@@ -696,6 +849,7 @@ export default function PayrollPage() {
                   <th className="p-3">Gross CTC</th>
                   <th className="p-3">PF</th>
                   <th className="p-3">ESI</th>
+                  <th className="p-3">LOP</th>
                   <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -745,6 +899,19 @@ export default function PayrollPage() {
                           ) : (
                             <small className="text-slate-400">—</small>
                           )}
+                        </td>
+                        <td className="p-3">
+                          {hasSetup && s.lop_days ? (
+                            <span className="px-2 py-0.5 rounded-full font-semibold text-rose-700 bg-rose-50 border border-rose-200">
+                              {s.lop_days} LOP
+                            </span>
+                          ) : (emp.lopDays ? (
+                            <span className="px-2 py-0.5 rounded-full font-semibold text-amber-700 bg-amber-50 border border-amber-200">
+                              {emp.lopDays} LOP
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-medium">0</span>
+                          ))}
                         </td>
                         <td className="p-3 text-right">
                           <button
@@ -826,18 +993,20 @@ export default function PayrollPage() {
                     Excel
                   </button>
                   {r.status === 'finalized' ? (
-                    <button onClick={() => alert('Payslips published to all employee mobile dashboards!')} className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 shadow-sm">
-                      Publish Payslips
+                    <button
+                      onClick={() => handlePublishPayslips(r)}
+                      disabled={isProcessing}
+                      className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 shadow-sm disabled:opacity-50"
+                    >
+                      {isProcessing ? 'Publishing...' : 'Publish Payslips'}
                     </button>
                   ) : (
                     <button
-                      onClick={() => {
-                        setRuns((prev) => prev.map((item) => (item.id === r.id ? { ...item, status: 'finalized' } : item)));
-                        alert('Payroll finalized successfully.');
-                      }}
-                      className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-500 shadow-sm"
+                      onClick={() => handleFinalizeRun(r)}
+                      disabled={isProcessing}
+                      className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-500 shadow-sm disabled:opacity-50"
                     >
-                      Finalize
+                      {isProcessing ? 'Finalizing...' : 'Finalize'}
                     </button>
                   )}
                 </div>
@@ -879,13 +1048,23 @@ export default function PayrollPage() {
                     PAYSLIP FOR {MONTH_NAMES[currentPayslip.month].toUpperCase()} {currentPayslip.year}
                   </p>
                 </div>
-                <button
-                  onClick={() => window.print()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl backdrop-blur-sm transition"
-                >
-                  <Printer className="h-4 w-4" />
-                  <span>Print</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handlePublishCurrentPayslip}
+                    disabled={isProcessing}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl backdrop-blur-sm transition shadow-sm disabled:opacity-50"
+                  >
+                    <Send className="h-4 w-4" />
+                    <span>{isProcessing ? 'Publishing...' : 'Publish to Mobile'}</span>
+                  </button>
+                  <button
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold rounded-xl backdrop-blur-sm transition"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>Print</span>
+                  </button>
+                </div>
               </div>
 
               <div className="p-6 space-y-4 text-xs">
@@ -944,6 +1123,12 @@ export default function PayrollPage() {
                     <div className="flex justify-between text-slate-600"><span>PF (Employee 12%)</span><span>{cur(currentPayslip.pf_employee)}</span></div>
                     <div className="flex justify-between text-slate-600"><span>Professional Tax</span><span>{cur(currentPayslip.professional_tax)}</span></div>
                     <div className="flex justify-between text-slate-600"><span>TDS / Income Tax</span><span>{cur(currentPayslip.tds)}</span></div>
+                    {currentPayslip.lop_days > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Loss of Pay (LOP) ({currentPayslip.lop_days} days)</span>
+                        <span className="text-rose-600 font-semibold">{cur(currentPayslip.lop_amount || 0)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-2">
                       <span>Total Deductions</span>
                       <span className="text-rose-600">{cur(currentPayslip.total_deductions)}</span>
@@ -1392,6 +1577,35 @@ export default function PayrollPage() {
                         </div>
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
+                      <div className="col-span-2">
+                        <label className="block text-[11px] font-semibold text-rose-700 mb-1">
+                          Loss of Pay (LOP) Days (Unapproved Absences)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max="31"
+                            value={dLopDays}
+                            onChange={(e) => setDLopDays(e.target.value)}
+                            className="w-full pl-3 pr-14 py-1.5 border border-rose-200 bg-rose-50/40 rounded-xl font-medium text-rose-900 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                            placeholder="0"
+                          />
+                          <span className="absolute right-2.5 top-2 text-[10px] text-rose-500 font-semibold">Days</span>
+                        </div>
+                        {calculatedDeductions.lopAmount > 0 ? (
+                          <span className="text-[10px] text-rose-600 font-medium block mt-1">
+                            -{cur(calculatedDeductions.lopAmount)} deduction calculated for this employee ({dLopDays} LOP days)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 block mt-1">
+                            Calculated per-employee based on unapproved leave without HR approval.
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-4 gap-2.5">
@@ -1419,6 +1633,29 @@ export default function PayrollPage() {
                           className="w-full pl-6 pr-2 py-1.5 border border-slate-200 rounded-xl"
                         />
                       </div>
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="block text-[11px] font-semibold text-rose-700 mb-1">
+                        Loss of Pay (LOP) Days
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          max="31"
+                          value={dLopDays}
+                          onChange={(e) => setDLopDays(e.target.value)}
+                          className="w-full pl-3 pr-14 py-1.5 border border-rose-200 bg-rose-50/40 rounded-xl font-medium text-rose-900 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                          placeholder="0"
+                        />
+                        <span className="absolute right-2.5 top-2 text-[10px] text-rose-500 font-semibold">Days</span>
+                      </div>
+                      {calculatedDeductions.lopAmount > 0 && (
+                        <span className="text-[10px] text-rose-600 font-medium block mt-1">
+                          -{cur(calculatedDeductions.lopAmount)} deduction ({dLopDays} LOP days)
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}

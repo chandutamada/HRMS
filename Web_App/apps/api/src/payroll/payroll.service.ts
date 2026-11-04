@@ -359,14 +359,25 @@ export class PayrollService {
   }
 
   async getMyPayslips(user: AuthenticatedUser) {
-    if (!user.employeeId) {
-      throw new BadRequestException('Employee profile required');
+    let employeeId = user.employeeId;
+    if (!employeeId) {
+      const emp = await this.prisma.employee.findUnique({
+        where: { userId: user.id },
+      });
+      employeeId = emp?.id;
+    }
+
+    if (!employeeId) {
+      return [];
     }
 
     return this.prisma.payrollRecord.findMany({
       where: {
-        employeeId: user.employeeId,
-        payslipGenerated: true,
+        employeeId,
+        OR: [
+          { payslipGenerated: true },
+          { status: PayrollRecordStatus.FINALIZED },
+        ],
       },
       include: {
         payrollPeriod: true,

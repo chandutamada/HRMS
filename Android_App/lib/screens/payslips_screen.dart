@@ -47,17 +47,26 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
       final res = await ApiService()
           .dio
           .get('/payroll/payslips/my')
-          .timeout(const Duration(seconds: 4));
+          .timeout(const Duration(seconds: 15));
 
-      final data = res.data['data'] as List<dynamic>? ?? [];
+      final raw = res.data;
+      List<dynamic> data = [];
+      if (raw is List) {
+        data = raw;
+      } else if (raw is Map && raw['data'] is List) {
+        data = raw['data'];
+      }
+
       if (mounted) {
         setState(() {
           _allPayslips = data;
           if (_allPayslips.isNotEmpty && widget.initialPayslip == null) {
             final latest = _allPayslips.first;
-            final period = latest['payrollPeriod'] ?? {};
-            if (period['year'] != null) _selectedYear = int.tryParse('${period['year']}') ?? _selectedYear;
-            if (period['month'] != null) _selectedMonth = int.tryParse('${period['month']}') ?? _selectedMonth;
+            final period = (latest['payrollPeriod'] is Map) ? latest['payrollPeriod'] as Map : {};
+            final y = int.tryParse('${period['year'] ?? latest['year']}');
+            final m = int.tryParse('${period['month'] ?? latest['month']}');
+            if (y != null) _selectedYear = y;
+            if (m != null) _selectedMonth = m;
           }
         });
       }
@@ -70,9 +79,9 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
 
   Map<String, dynamic>? get _currentPayslip {
     for (final p in _allPayslips) {
-      final period = p['payrollPeriod'] ?? {};
-      final y = int.tryParse('${period['year']}');
-      final m = int.tryParse('${period['month']}');
+      final period = (p['payrollPeriod'] is Map) ? p['payrollPeriod'] as Map : {};
+      final y = int.tryParse('${period['year'] ?? p['year']}');
+      final m = int.tryParse('${period['month'] ?? p['month']}');
       if (y == _selectedYear && m == _selectedMonth) {
         return p as Map<String, dynamic>;
       }
@@ -137,10 +146,10 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
     final deductionItems = lineItems.where((i) => i['type'] == 'DEDUCTION').toList();
 
     final employee = slip?['employee'] ?? {};
-    final employeeNo = employee['employeeCode'] ?? '09123';
+    final employeeNo = employee['employeeCode'] ?? '—';
     final employeeName = '${employee['firstName'] ?? ''} ${employee['lastName'] ?? ''}'.trim();
-    final bankName = employee['bankName'] ?? 'HDFC Bank';
-    final bankAccount = employee['bankAccountNumber'] ?? '••••••••7890';
+    final bankName = employee['bankName'] ?? '—';
+    final bankAccount = employee['bankAccountNumber'] ?? '—';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -200,7 +209,7 @@ class _PayslipsScreenState extends State<PayslipsScreen> {
                         items: [2024, 2025, 2026, 2027].map((y) {
                           return DropdownMenuItem<int>(
                             value: y,
-                            child: Text('$y - ${y + 1}'),
+                            child: Text('$y'),
                           );
                         }).toList(),
                         onChanged: (val) {
