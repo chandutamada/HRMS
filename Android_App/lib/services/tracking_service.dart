@@ -230,8 +230,15 @@ class TrackingService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Start live location engine, STOMP broker connection, and background tracking
-  Future<bool> startTracking({String workType = 'OFF_SITE'}) async {
+  /// Start live location engine, foreground notification service, and background tracking
+  /// Only executes for FIELD employees; OFFICE employees are excluded from continuous background tracking.
+  Future<bool> startTracking({String workType = 'FIELD', String employmentType = 'FIELD'}) async {
+    final type = employmentType.toUpperCase();
+    if (type == 'OFFICE') {
+      debugPrint('[TrackingService] Employee is OFFICE type. Continuous background tracking bypassed.');
+      return false;
+    }
+
     _workLocationType = workType;
 
     // Check GPS and request background permissions
@@ -264,28 +271,35 @@ class TrackingService extends ChangeNotifier {
     _initStompBroker();
 
     // 2. Start duration timer
-    _updateBatteryLevel();
+    await _updateBatteryLevel();
     _startDurationTimer();
 
-    // 3. Acquire initial position
+    // 3. Acquire initial position and send first ping to /tracking/ping
     try {
       final initialPos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
       _onNewPosition(initialPos);
+      await _sendFieldPing(initialPos);
     } catch (_) {}
 
-    // 4. Stream continuous GPS positions with high accuracy and distanceFilter: 10 meters
+    // 4. Stream continuous GPS positions with high accuracy and 15-meter minimum movement threshold
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // 10 meters to prevent battery drain and redundant stationary pings
+        distanceFilter: 15, // 15 meters to minimize battery drain
       ),
-    ).listen(_onNewPosition);
+    ).listen((pos) {
+      _onNewPosition(pos);
+      _sendFieldPing(pos);
+    });
 
-    // 5. Periodic fallback keepalive / offline sync every 30 seconds
+    // 5. Periodic 30-second ping upload to POST /tracking/ping and fallback keepalive
     _livePingTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
       if (_state == TrackingState.tracking) {
+        if (_currentPosition != null) {
+          await _sendFieldPing(_currentPosition!);
+        }
         if (_offlineBuffer.pendingCount > 0) {
           await _offlineBuffer.flushAndSync(_api, _sessionId!, _totalDistanceKm);
           notifyListeners();
@@ -302,6 +316,25 @@ class TrackingService extends ChangeNotifier {
 
     notifyListeners();
     return true;
+  }
+
+  /// Sends GPS telemetry ping to POST /tracking/ping every 30 seconds or on movement
+  Future<void> _sendFieldPing(Position pos) async {
+    try {
+      await _updateBatteryLevel();
+      final body = {
+        'latitude': pos.latitude,
+        'longitude': pos.longitude,
+        'speed': pos.speed >= 0 ? pos.speed * 3.6 : 0.0,
+        'accuracy': pos.accuracy,
+        'altitude': pos.altitude,
+        'heading': pos.heading,
+        'battery': _cachedBatteryLevel,
+        'batteryLevel': _cachedBatteryLevel,
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
+      };
+      await _api.dio.post('/tracking/ping', data: body);
+    } catch (_) {}
   }
 
   Future<void> _initStompBroker() async {

@@ -5,6 +5,7 @@ import L from 'leaflet';
 import { api } from '@/lib/api';
 import { reverseGeocode } from '@/lib/geocoding';
 import { StompClient } from '@/lib/stomp';
+import { fetchRoadGeometry } from './FieldTrackingMap';
 import {
   MapPin,
   Calendar,
@@ -459,8 +460,13 @@ export default function GoogleMapsTimelineView({
     }
 
     // 2. Custom cyan/blue polyline (#0288d1, width: 4px) with Start & End Milestones
-    if (hasRoute) {
-      const polyline = L.polyline(routePolyline, {
+    // Uses OSRM road-snapping engine so polyline hugs real streets instead of straight lines
+    const pointsToDraw = hasRoute
+      ? routePolyline
+      : (hasStops && stops.length > 1 ? stops.map((s) => [s.latitude, s.longitude] as [number, number]) : []);
+
+    if (pointsToDraw.length > 1) {
+      const polyline = L.polyline(pointsToDraw, {
         color: '#0288d1',
         weight: 5,
         opacity: 0.9,
@@ -470,8 +476,15 @@ export default function GoogleMapsTimelineView({
       polyline.addTo(map);
       routeLayerRef.current = polyline;
 
+      // Asynchronously fetch road-snapped geometry from OSRM
+      fetchRoadGeometry(pointsToDraw).then((snapped) => {
+        if (routeLayerRef.current && snapped && snapped.length > 0) {
+          routeLayerRef.current.setLatLngs(snapped);
+        }
+      });
+
       // Start / Origin Milestone Marker (Green)
-      const startCoord = routePolyline[0];
+      const startCoord = pointsToDraw[0];
       const startIcon = L.divIcon({
         className: 'start-milestone-marker',
         html: `
@@ -499,7 +512,7 @@ export default function GoogleMapsTimelineView({
       markersGroupRef.current?.addLayer(startMarker);
 
       // Destination / Latest Milestone Marker (Red)
-      const endCoord = routePolyline[routePolyline.length - 1];
+      const endCoord = pointsToDraw[pointsToDraw.length - 1];
       const endIcon = L.divIcon({
         className: 'end-milestone-marker',
         html: `

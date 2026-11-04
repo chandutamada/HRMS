@@ -31,6 +31,10 @@ export class TrackingService {
     this.gateway = gateway;
   }
 
+  getGateway(): TrackingGateway | undefined {
+    return this.gateway;
+  }
+
   constructor(
     private prisma: PrismaService,
   ) {}

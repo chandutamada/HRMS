@@ -311,6 +311,11 @@ enum WorkLocationType {
   OFF_SITE
 }
 
+enum EmploymentType {
+  OFFICE
+  FIELD
+}
+
 model Employee {
   id                  String           @id @default(uuid())
   userId              String           @unique
@@ -328,6 +333,7 @@ model Employee {
   phone               String?          @db.VarChar(30)
   gender              Gender?
   workLocationType    WorkLocationType @default(ON_SITE)
+  employmentType      EmploymentType   @default(OFFICE)
   dateOfBirth         DateTime?        @db.Date
   joiningDate         DateTime         @db.Date
   exitDate            DateTime?        @db.Date

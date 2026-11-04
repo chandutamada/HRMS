@@ -37,6 +37,13 @@ export class AttendanceService {
   ) {}
 
   /**
+   * Alias for punch() required by Enterprise specification
+   */
+  async punch(dto: RecordAttendanceEventDto, user: AuthenticatedUser) {
+    return this.recordAttendanceEvent(dto, user);
+  }
+
+  /**
    * Primary Geofenced Attendance Event Submission (Mobile App)
    */
   async recordAttendanceEvent(dto: RecordAttendanceEventDto, user: AuthenticatedUser) {
@@ -113,7 +120,10 @@ export class AttendanceService {
     // 2. Assess Validation Status
     let validationStatus: GeofenceValidationStatus = GeofenceValidationStatus.VALID;
     let suspiciousDetails: string | null = null;
-    const isOfficeEmployee = employee.workLocationType === 'ON_SITE';
+    
+    // Differentiate between OFFICE and FIELD employees
+    const employmentType = (employee as any).employmentType || (employee.workLocationType === 'OFF_SITE' ? 'FIELD' : 'OFFICE');
+    const isOfficeEmployee = employmentType === 'OFFICE';
 
     if (dto.isMocked) {
       validationStatus = GeofenceValidationStatus.MOCKED_LOCATION;
@@ -122,12 +132,19 @@ export class AttendanceService {
     } else if (dto.accuracyMeters > 100) {
       validationStatus = GeofenceValidationStatus.INACCURATE_GPS;
       suspiciousDetails = `High GPS inaccuracy: ${dto.accuracyMeters}m (Threshold: 100m)`;
-    } else if (isOfficeEmployee && !isWithin) {
-      validationStatus = GeofenceValidationStatus.OUTSIDE_GEOFENCE;
-      const actionName = dto.eventType === AttendanceEventType.CHECK_IN ? 'punch in' : 'punch out';
-      throw new BadRequestException(
-        `Punch rejected: You are outside the office geofence perimeter (${Math.round(distanceMeters)}m from ${office.name}, allowed radius: ${office.radiusMeters}m). Office employees must ${actionName} from inside the office boundary.`,
-      );
+    } else if (isOfficeEmployee) {
+      // If employmentType === 'OFFICE': Enforce strict office geofence validation via Haversine distance (radius <= 50m). Reject if outside.
+      const maxOfficeRadius = Math.min(office.radiusMeters || 50, 50);
+      if (distanceMeters > maxOfficeRadius) {
+        validationStatus = GeofenceValidationStatus.OUTSIDE_GEOFENCE;
+        const actionName = dto.eventType === AttendanceEventType.CHECK_IN ? 'punch in' : 'punch out';
+        throw new BadRequestException(
+          `Punch rejected: You are outside the strict office geofence perimeter (${Math.round(distanceMeters)}m from ${office.name}, maximum allowed radius: ${maxOfficeRadius}m). Office employees must ${actionName} from inside the office boundary.`,
+        );
+      }
+    } else {
+      // If employmentType === 'FIELD': Bypass office geofence radius validation.
+      validationStatus = GeofenceValidationStatus.VALID;
     }
 
     const now = new Date();
@@ -360,6 +377,57 @@ export class AttendanceService {
           remarks: `${geofenceRemark} [${timingMessage}]`,
         },
       });
+
+      // If employmentType === 'FIELD': Record punch-in coordinates as their starting point
+      if (!isOfficeEmployee) {
+        try {
+          const todayIso = now.toISOString().split('T')[0];
+          const sessionId = `session_${user.id}_${todayIso}`;
+          const session = await this.prisma.trackingSession.upsert({
+            where: { id: sessionId },
+            create: {
+              id: sessionId,
+              userId: user.id,
+              employeeId: employee.id,
+              companyId: employee.companyId,
+              startTime: now,
+              distanceKm: 0.0,
+              areaName: 'Field Operations - Day Start',
+              state: 'Active Duty',
+              isOfficeHours: true,
+            },
+            update: {
+              startTime: now,
+              updatedAt: now,
+            },
+          });
+
+          await this.prisma.routePoint.create({
+            data: {
+              sessionId: session.id,
+              userId: user.id,
+              latitude: dto.latitude,
+              longitude: dto.longitude,
+              accuracy: dto.accuracyMeters,
+              speed: 0,
+              timestamp: now,
+            },
+          });
+
+          await this.prisma.checkpoint.create({
+            data: {
+              sessionId: session.id,
+              latitude: dto.latitude,
+              longitude: dto.longitude,
+              arrivedAt: now,
+              pointIndex: 1,
+              notes: 'Field Departure / Starting Point',
+            },
+          });
+        } catch (sessionErr) {
+          console.error('Failed to record field starting point:', sessionErr);
+        }
+      }
 
       const eventResult = {
         success: true,

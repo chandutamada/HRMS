@@ -7,9 +7,11 @@ import {
   Param,
   Query,
   UseGuards,
+  Optional,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TrackingService } from './tracking.service';
+import { TrackingGateway } from './tracking.gateway';
 import {
   UpdateLiveLocationDto,
   SessionSyncRequestDto,
@@ -26,7 +28,61 @@ import { WorkLocationType } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class TrackingController {
-  constructor(private readonly trackingService: TrackingService) {}
+  constructor(
+    private readonly trackingService: TrackingService,
+    @Optional() private readonly trackingGateway?: TrackingGateway,
+  ) {}
+
+  @Post('ping')
+  @ApiOperation({
+    summary: 'Receive real-time field telemetry and emit field-tracking event via Socket.io',
+  })
+  async receiveFieldPing(
+    @Body() body: any,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const lat = Number(body.latitude ?? body.lat);
+    const lng = Number(body.longitude ?? body.lng);
+    const speed = body.speed != null ? Number(body.speed) : 0;
+    const accuracy = body.accuracy != null ? Number(body.accuracy) : undefined;
+    const altitude = body.altitude != null ? Number(body.altitude) : undefined;
+    const battery = body.battery != null ? Number(body.battery) : (body.batteryLevel != null ? Number(body.batteryLevel) : 100);
+    const employeeId = body.employeeId || user.employeeId;
+    const timestamp = body.timestamp || new Date().toISOString();
+
+    const result = await this.trackingService.updateLiveLocation(
+      {
+        latitude: lat,
+        longitude: lng,
+        speed,
+        accuracy,
+        altitude,
+        batteryLevel: battery,
+      },
+      user,
+    );
+
+    const telemetry = {
+      employeeId,
+      latitude: lat,
+      longitude: lng,
+      speed,
+      battery,
+      timestamp,
+    };
+
+    // Broadcast field-tracking event via Socket.io
+    const gateway = this.trackingGateway || this.trackingService.getGateway();
+    if (gateway) {
+      gateway.broadcastFieldTracking(telemetry);
+    }
+
+    return {
+      success: true,
+      data: telemetry,
+      meta: result?.meta,
+    };
+  }
 
   @Post('live')
   @ApiOperation({

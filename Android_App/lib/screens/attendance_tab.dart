@@ -161,12 +161,14 @@ class _AttendanceTabState extends State<AttendanceTab> {
         _fetchAttendance();
 
         // Field employee tracking starts strictly from Punch-In and stops upon Punch-Out
-        if (workLocationType == 'OFF_SITE') {
-          if (eventType == 'CHECK_IN') {
-            TrackingService().startTracking(workType: 'OFF_SITE');
-          } else if (eventType == 'CHECK_OUT') {
-            TrackingService().stopTracking();
+        // OFFICE employees do not run continuous background tracking
+        final empType = (data['employmentType'] ?? (workLocationType == 'OFF_SITE' ? 'FIELD' : 'OFFICE')).toString().toUpperCase();
+        if (eventType == 'CHECK_IN') {
+          if (empType == 'FIELD') {
+            TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
           }
+        } else if (eventType == 'CHECK_OUT') {
+          TrackingService().stopTracking();
         }
 
         _showPunchFeedbackDialog(data, eventType, batteryLevel);

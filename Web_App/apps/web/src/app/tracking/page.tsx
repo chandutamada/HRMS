@@ -31,6 +31,19 @@ const GoogleMapsTimelineView = dynamic(
     ),
   }
 );
+
+const FieldTrackingMap = dynamic(
+  () => import('@/components/tracking/FieldTrackingMap'),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[560px] w-full rounded-2xl bg-slate-900 border border-slate-800 flex flex-col items-center justify-center text-slate-400 gap-2">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+        <span className="text-xs font-semibold">Loading OSRM Road-Snapped Tactical Map...</span>
+      </div>
+    ),
+  }
+);
 import {
   Radio,
   MapPin,
@@ -76,7 +89,7 @@ export default function TrackingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<'ALL' | 'ON_SITE' | 'OFF_SITE'>('ALL');
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
-  const [activeViewMode, setActiveViewMode] = useState<'TIMELINE' | 'RADAR'>('TIMELINE');
+  const [activeViewMode, setActiveViewMode] = useState<'FIELD_OSRM' | 'TIMELINE' | 'RADAR'>('FIELD_OSRM');
 
   // Switch Work Location Modal state
   const [switchingEmployee, setSwitchingEmployee] = useState<any | null>(null);
@@ -408,6 +421,19 @@ export default function TrackingPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setActiveViewMode('FIELD_OSRM')}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition shadow-sm cursor-pointer ${
+              activeViewMode === 'FIELD_OSRM'
+                ? 'bg-sky-600 text-white shadow-md ring-2 ring-sky-300'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <Navigation className="h-4 w-4 text-cyan-200" />
+            <span>OSRM Road-Snapped Live Field Ops</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveViewMode('TIMELINE')}
             className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition shadow-sm cursor-pointer ${
               activeViewMode === 'TIMELINE'
@@ -415,8 +441,8 @@ export default function TrackingPage() {
                 : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
-            <Navigation className="h-4 w-4" />
-            <span>Field Journey Timeline (Movement & History)</span>
+            <Clock className="h-4 w-4" />
+            <span>Field Journey Timeline</span>
           </button>
 
           <button
@@ -429,18 +455,31 @@ export default function TrackingPage() {
             }`}
           >
             <Radio className="h-4 w-4 text-emerald-400" />
-            <span>Live Workforce Radar (All Personnel)</span>
+            <span>Workforce Radar</span>
           </button>
         </div>
 
         <span className="text-xs text-slate-500 font-medium hidden md:inline-block">
-          Select any employee to view their journey timeline, places visited, and street addresses
+          Select any employee to view their road-snapped journey, places visited, and street addresses
         </span>
       </div>
 
       {/* Main Tactical Map View */}
       <div id="telemetry-map-section">
-        {activeViewMode === 'TIMELINE' ? (
+        {activeViewMode === 'FIELD_OSRM' ? (
+          <FieldTrackingMap
+            initialEmployeeId={selectedEmployee?.id}
+            initialEmployeeName={selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : (employees[0] ? `${employees[0].firstName} ${employees[0].lastName}` : 'Field Specialist')}
+            initialPosition={
+              selectedEmployee?.liveLocation?.latitude && selectedEmployee?.liveLocation?.longitude
+                ? [selectedEmployee.liveLocation.latitude, selectedEmployee.liveLocation.longitude]
+                : (employees[0]?.liveLocation?.latitude && employees[0]?.liveLocation?.longitude
+                    ? [employees[0].liveLocation.latitude, employees[0].liveLocation.longitude]
+                    : [18.1502552, 83.3905899])
+            }
+            height="560px"
+          />
+        ) : activeViewMode === 'TIMELINE' ? (
           <GoogleMapsTimelineView
             employees={employees}
             initialEmployeeId={selectedEmployee?.id}

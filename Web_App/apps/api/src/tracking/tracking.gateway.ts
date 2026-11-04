@@ -251,6 +251,21 @@ export class TrackingGateway
       this.server.to(`hr:${info.companyId}`).to('hr:live_tracking').emit('employee_location_updated', locationPayload);
       this.server.to(`hr:${info.companyId}`).to('hr:live_tracking').emit('track:location_update', locationPayload);
 
+      // Emit field-tracking event via Socket.io containing: { employeeId, latitude, longitude, speed, battery, timestamp }
+      const fieldTrackingPayload = {
+        employeeId: info.employeeId,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        speed: dto.speed ?? 0,
+        battery: dto.batteryLevel ?? 100,
+        timestamp: new Date().toISOString(),
+      };
+      this.server.emit('field-tracking', fieldTrackingPayload);
+      if (info.companyId) {
+        this.server.to(`hr:${info.companyId}`).emit('field-tracking', fieldTrackingPayload);
+      }
+      this.server.to('hr:live_tracking').emit('field-tracking', fieldTrackingPayload);
+
       // If breach detected, fire dedicated event
       if (
         result.meta?.isWithinOfficeHours &&
@@ -320,6 +335,23 @@ export class TrackingGateway
   }
 
   // ─── Server-initiated broadcasts (called from TrackingService if needed) ────
+
+  /**
+   * Push a field tracking ping to connected clients.
+   * Emits field-tracking event with { employeeId, latitude, longitude, speed, battery, timestamp }.
+   */
+  broadcastFieldTracking(payload: {
+    employeeId?: string;
+    latitude: number;
+    longitude: number;
+    speed?: number;
+    battery?: number;
+    timestamp?: string;
+  }) {
+    if (!this.server) return;
+    this.server.emit('field-tracking', payload);
+    this.server.to('hr:live_tracking').emit('field-tracking', payload);
+  }
 
   /**
    * Push a location update from outside the gateway (e.g. HTTP fallback POST).

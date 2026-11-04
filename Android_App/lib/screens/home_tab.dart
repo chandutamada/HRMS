@@ -309,12 +309,14 @@ class _HomeTabState extends State<HomeTab> {
       await _fetchHomeData();
 
       // Field employee live tracking is triggered strictly from Punch-In till Punch-Out
-      if (workLocationType == 'OFF_SITE') {
-        if (eventType == 'CHECK_IN') {
-          TrackingService().startTracking(workType: 'OFF_SITE');
-        } else if (eventType == 'CHECK_OUT') {
-          TrackingService().stopTracking();
+      // OFFICE employees do not run continuous background tracking
+      final empType = (result['employmentType'] ?? (workLocationType == 'OFF_SITE' ? 'FIELD' : 'OFFICE')).toString().toUpperCase();
+      if (eventType == 'CHECK_IN') {
+        if (empType == 'FIELD') {
+          TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
         }
+      } else if (eventType == 'CHECK_OUT') {
+        TrackingService().stopTracking();
       }
 
       if (mounted) {
