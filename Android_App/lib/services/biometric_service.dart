@@ -160,6 +160,10 @@ class BiometricService {
       tokens['refreshToken'],
     );
 
+    if (user != null) {
+      await ApiService().saveCachedUser(user as Map<String, dynamic>);
+    }
+
     return user as Map<String, dynamic>;
   }
 }

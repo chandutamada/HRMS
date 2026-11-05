@@ -48,6 +48,27 @@ class _AttendanceTabState extends State<AttendanceTab> {
           _todayStatus = statusRes.data['data'];
           _history = historyRes.data['data']?['items'] ?? [];
         });
+
+        // Auto-resume active tracking or office geofence monitoring if punched in
+        final hasCheckedIn = (_todayStatus?['hasCheckedIn'] == true) ||
+            (_todayStatus?['isCheckedIn'] == true) ||
+            (_todayStatus?['firstCheckIn'] != null);
+        final hasCheckedOut = (_todayStatus?['hasCheckedOut'] == true) ||
+            (_todayStatus?['lastCheckOut'] != null);
+
+        if (hasCheckedIn && !hasCheckedOut) {
+          final isOffice = (_todayStatus?['workLocationType'] ?? 'OFFICE') == 'ON_SITE' ||
+              (_todayStatus?['workLocationType'] ?? 'OFFICE') == 'OFFICE';
+          if (!isOffice) {
+            if (!TrackingService().isTracking) {
+              TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
+            }
+          } else {
+            if (!TrackingService().isOfficeGeofenceMonitoring) {
+              TrackingService().startOfficeGeofenceMonitor(_todayStatus?['office']);
+            }
+          }
+        }
       }
     } catch (e) {
       // Handle gracefully
@@ -161,13 +182,16 @@ class _AttendanceTabState extends State<AttendanceTab> {
         _fetchAttendance();
 
         // Field employee tracking starts strictly from Punch-In and stops upon Punch-Out
-        // OFFICE employees do not run continuous background tracking
+        // Office employee geofence boundary monitor is activated upon Punch-In
         final empType = (data['employmentType'] ?? (workLocationType == 'OFF_SITE' ? 'FIELD' : 'OFFICE')).toString().toUpperCase();
         if (eventType == 'CHECK_IN') {
           if (empType == 'FIELD') {
             TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
+          } else {
+            TrackingService().startOfficeGeofenceMonitor(_todayStatus?['office']);
           }
         } else if (eventType == 'CHECK_OUT') {
+          TrackingService().stopOfficeGeofenceMonitor();
           TrackingService().stopTracking();
         }
 

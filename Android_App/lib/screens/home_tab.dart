@@ -61,6 +61,26 @@ class _HomeTabState extends State<HomeTab> {
         setState(() {
           _todayStatus = statusRes.data['data'];
         });
+
+        // Auto-resume active tracking / geofence monitoring if employee is already punched in today
+        final hasCheckedIn = (_todayStatus?['hasCheckedIn'] == true) ||
+            (_todayStatus?['isCheckedIn'] == true) ||
+            (_todayStatus?['firstCheckIn'] != null);
+        final hasCheckedOut = (_todayStatus?['hasCheckedOut'] == true) ||
+            (_todayStatus?['lastCheckOut'] != null);
+
+        if (hasCheckedIn && !hasCheckedOut) {
+          final empType = (_homeData['employee']?['workLocationType'] ?? 'OFFICE').toString().toUpperCase();
+          if (empType == 'OFF_SITE' || empType == 'FIELD') {
+            if (!TrackingService().isTracking) {
+              TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
+            }
+          } else {
+            if (!TrackingService().isOfficeGeofenceMonitoring) {
+              TrackingService().startOfficeGeofenceMonitor(_homeData['office']);
+            }
+          }
+        }
       }
     } catch (_) {
       // Graceful fallback
@@ -309,13 +329,16 @@ class _HomeTabState extends State<HomeTab> {
       await _fetchHomeData();
 
       // Field employee live tracking is triggered strictly from Punch-In till Punch-Out
-      // OFFICE employees do not run continuous background tracking
+      // Office employee geofence boundary monitor is activated from Punch-In (tracks if they step outside)
       final empType = (result['employmentType'] ?? (workLocationType == 'OFF_SITE' ? 'FIELD' : 'OFFICE')).toString().toUpperCase();
       if (eventType == 'CHECK_IN') {
         if (empType == 'FIELD') {
           TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
+        } else {
+          TrackingService().startOfficeGeofenceMonitor(_homeData['office']);
         }
       } else if (eventType == 'CHECK_OUT') {
+        TrackingService().stopOfficeGeofenceMonitor();
         TrackingService().stopTracking();
       }
 

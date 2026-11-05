@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -398,7 +399,7 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload);
-    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const refreshExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 365 days
 
     await this.prisma.refreshToken.create({
       data: {
@@ -411,7 +412,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: newRawRefreshToken,
-      expiresIn: 3600,
+      expiresIn: 31536000, // 365 days
     };
   }
 
@@ -434,6 +435,17 @@ export class AuthService {
   }
 
   async changePassword(user: AuthenticatedUser, dto: ChangePasswordDto) {
+    const isHrOrAdmin =
+      user.isSuperAdmin ||
+      user.roles?.some((r: string) =>
+        ['HR_ADMIN', 'HR_MANAGER', 'SUPER_ADMIN'].includes(r),
+      );
+    if (!isHrOrAdmin) {
+      throw new ForbiddenException(
+        'Password change policy: Employee passwords are set and managed exclusively by HR Administration. Please contact your HR Manager to change or reset your password.',
+      );
+    }
+
     const userRecord = await this.prisma.user.findUnique({ where: { id: user.id } });
     if (!userRecord) {
       throw new NotFoundException('User record not found');
@@ -493,7 +505,7 @@ export class AuthService {
 
     const rawRefreshToken = crypto.randomBytes(40).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
-    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const refreshExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 365 days
 
     await this.prisma.refreshToken.create({
       data: {
@@ -506,7 +518,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: rawRefreshToken,
-      expiresIn: 3600, // 1 hour
+      expiresIn: 31536000, // 365 days
     };
   }
 }

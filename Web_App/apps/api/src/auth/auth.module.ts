@@ -17,7 +17,7 @@ import { JwtStrategy } from './jwt.strategy';
           config.get<string>('JWT_SECRET') ||
           'super_secret_hrms_jwt_access_key_2026_superbee_gtids_gtib!',
         signOptions: {
-          expiresIn: (config.get<string>('JWT_EXPIRES_IN') || '1h') as any,
+          expiresIn: (config.get<string>('JWT_EXPIRES_IN') || '365d') as any,
         },
       }),
     }),

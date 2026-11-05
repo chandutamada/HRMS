@@ -36,23 +36,44 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// Check if user has an existing valid JWT session
+  /// Check if user has an existing valid session and auto-restore without kicking them out
   Future<void> _checkExistingSession() async {
     try {
-      final token = await ApiService().getToken().timeout(const Duration(seconds: 2));
-      if (token != null && token.isNotEmpty) {
-        final profileRes = await ApiService().dio.get('/auth/me').timeout(const Duration(seconds: 2));
-        final user = profileRes.data['data'];
-        if (mounted && user != null) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => MainNavigationScreen(userData: user),
-            ),
-          );
-        }
+      final token = await ApiService().getToken();
+      if (token == null || token.isEmpty) return;
+
+      // 1. Instantly restore from locally cached profile for zero-delay startup
+      final cachedUser = await ApiService().getCachedUser();
+      if (cachedUser != null && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => MainNavigationScreen(userData: cachedUser),
+          ),
+        );
+
+        // Silently sync latest profile in background
+        ApiService().dio.get('/auth/me').then((profileRes) {
+          final freshUser = profileRes.data['data'];
+          if (freshUser != null) {
+            ApiService().saveCachedUser(freshUser);
+          }
+        }).catchError((_) {});
+        return;
+      }
+
+      // 2. Fallback to API if cached user is missing
+      final profileRes = await ApiService().dio.get('/auth/me').timeout(const Duration(seconds: 10));
+      final user = profileRes.data['data'];
+      if (mounted && user != null) {
+        await ApiService().saveCachedUser(user);
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => MainNavigationScreen(userData: user),
+          ),
+        );
       }
     } catch (_) {
-      // Gracefully remain on login screen
+      // Gracefully remain on login screen only if no session exists
     }
   }
 
@@ -104,6 +125,10 @@ class _LoginScreenState extends State<LoginScreen> {
         tokens['accessToken'],
         tokens['refreshToken'],
       );
+
+      if (user != null) {
+        await ApiService().saveCachedUser(user);
+      }
 
       // Securely store credentials for subsequent one-touch Biometric Login
       final empName = user != null ? '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim() : null;

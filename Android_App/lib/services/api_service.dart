@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
@@ -74,14 +75,27 @@ class ApiService {
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
-          if (e.response?.statusCode == 401) {
-            await clearAuth();
-            try {
-              HRMSApp.navigatorKey.currentState?.pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
-            } catch (_) {}
+          if (e.response?.statusCode == 401 && !e.requestOptions.path.contains('/auth/')) {
+            // Attempt silent refresh using refresh token
+            final refreshToken = await getRefreshToken();
+            if (refreshToken != null && refreshToken.isNotEmpty) {
+              try {
+                final refreshDio = Dio(BaseOptions(baseUrl: baseUrl, connectTimeout: const Duration(seconds: 15)));
+                final res = await refreshDio.post('/auth/refresh', data: {'refreshToken': refreshToken});
+                final data = res.data['data'] ?? res.data;
+                final newAccess = data['accessToken'] ?? data['tokens']?['accessToken'];
+                final newRefresh = data['refreshToken'] ?? data['tokens']?['refreshToken'] ?? refreshToken;
+                if (newAccess != null) {
+                  await saveAuthTokens(newAccess, newRefresh);
+                  final clonedOptions = e.requestOptions;
+                  clonedOptions.headers['Authorization'] = 'Bearer $newAccess';
+                  final retryRes = await dio.fetch(clonedOptions);
+                  return handler.resolve(retryRes);
+                }
+              } catch (_) {
+                // Refresh failed; only clear if token truly revoked
+              }
+            }
           }
           return handler.next(e);
         },
@@ -111,6 +125,7 @@ class ApiService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('jwt_token');
       await prefs.remove('refresh_token');
+      await prefs.remove('cached_user_data');
     } catch (_) {}
   }
 
@@ -126,6 +141,38 @@ class ApiService {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<String?> getRefreshToken() async {
+    try {
+      final token = await secureStorage.read(key: 'refresh_token');
+      if (token != null && token.isNotEmpty) return token;
+    } catch (_) {}
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('refresh_token');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveCachedUser(Map<String, dynamic> user) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('cached_user_data', jsonEncode(user));
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>?> getCachedUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString('cached_user_data');
+      if (str != null && str.isNotEmpty) {
+        return jsonDecode(str) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Triggers the Google Account selection sheet, extracts idToken, and logs in with backend

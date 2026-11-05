@@ -73,6 +73,14 @@ class TrackingService extends ChangeNotifier {
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   bool _notificationsInitialized = false;
 
+  Timer? _officeGeofenceCheckTimer;
+  Map<String, dynamic>? _monitoredOffice;
+  bool _isOfficeGeofenceMonitoring = false;
+  bool _isOfficeOutsideGeofence = false;
+
+  bool get isOfficeOutsideGeofence => _isOfficeOutsideGeofence;
+  bool get isOfficeGeofenceMonitoring => _isOfficeGeofenceMonitoring;
+
   // Getters
   TrackingState get state => _state;
   bool get isTracking => _state == TrackingState.tracking;
@@ -231,10 +239,14 @@ class TrackingService extends ChangeNotifier {
   }
 
   /// Start live location engine, foreground notification service, and background tracking
-  /// Only executes for FIELD employees; OFFICE employees are excluded from continuous background tracking.
-  Future<bool> startTracking({String workType = 'FIELD', String employmentType = 'FIELD'}) async {
+  /// Supports FIELD employees and OFFICE employees who step out of office geofence.
+  Future<bool> startTracking({
+    String workType = 'FIELD',
+    String employmentType = 'FIELD',
+    bool forceOutOfGeofence = false,
+  }) async {
     final type = employmentType.toUpperCase();
-    if (type == 'OFFICE') {
+    if (type == 'OFFICE' && !forceOutOfGeofence && workType != 'OFFICE_OUT_OF_GEOFENCE') {
       debugPrint('[TrackingService] Employee is OFFICE type. Continuous background tracking bypassed.');
       return false;
     }
@@ -283,12 +295,31 @@ class TrackingService extends ChangeNotifier {
       await _sendFieldPing(initialPos);
     } catch (_) {}
 
-    // 4. Stream continuous GPS positions with high accuracy and 15-meter minimum movement threshold
-    _positionSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
+    // 4. Stream continuous GPS positions with 5-meter road-curve precision and Android foreground service
+    // AndroidSettings binds a persistent Android Foreground Service so tracking survives app closure and removal from recents
+    LocationSettings locationSettings;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      locationSettings = AndroidSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5, // 5 meters to capture every curve, turn, and bend in the road
+        forceLocationManager: false,
+        intervalDuration: const Duration(seconds: 3),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: "HRMS Live Tracking Active",
+          notificationText: "Continuous road-accurate live location tracking is active in background",
+          enableWakeLock: true,
+          notificationIcon: AndroidResource(name: 'ic_launcher', defType: 'mipmap'),
+        ),
+      );
+    } else {
+      locationSettings = const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 15, // 15 meters to minimize battery drain
-      ),
+        distanceFilter: 5,
+      );
+    }
+
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
     ).listen((pos) {
       _onNewPosition(pos);
       _sendFieldPing(pos);
@@ -639,5 +670,74 @@ class TrackingService extends ChangeNotifier {
     await syncSession();
 
     notifyListeners();
+  }
+
+  /// Starts monitoring office geofence boundary for punched-in office employees.
+  /// If the office employee steps outside the office radius, live tracking triggers automatically!
+  void startOfficeGeofenceMonitor(Map<String, dynamic>? office) {
+    if (office == null) return;
+    _monitoredOffice = office;
+    _isOfficeGeofenceMonitoring = true;
+    _isOfficeOutsideGeofence = false;
+
+    _officeGeofenceCheckTimer?.cancel();
+    _officeGeofenceCheckTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      await _evaluateOfficeGeofenceBoundary();
+    });
+    _evaluateOfficeGeofenceBoundary();
+    debugPrint('[TrackingService] Office geofence boundary monitor active for: ${office['name'] ?? 'Office HQ'}');
+  }
+
+  Future<void> _evaluateOfficeGeofenceBoundary() async {
+    if (!_isOfficeGeofenceMonitoring || _monitoredOffice == null) return;
+    try {
+      final offLat = (_monitoredOffice!['latitude'] as num?)?.toDouble();
+      final offLng = (_monitoredOffice!['longitude'] as num?)?.toDouble();
+      final radius = (_monitoredOffice!['radius'] as num?)?.toDouble() ?? 50.0;
+      if (offLat == null || offLng == null) return;
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+
+      final distance = Geolocator.distanceBetween(
+        pos.latitude,
+        pos.longitude,
+        offLat,
+        offLng,
+      );
+
+      // 10-meter grace buffer above radius to avoid false triggers right at the boundary
+      final threshold = radius + 10.0;
+
+      if (distance > threshold) {
+        if (!_isOfficeOutsideGeofence && _state != TrackingState.tracking) {
+          _isOfficeOutsideGeofence = true;
+          debugPrint('[TrackingService] Office employee stepped out of geofence (${distance.toStringAsFixed(1)}m > ${threshold}m). Starting live tracking!');
+          await startTracking(
+            workType: 'OFFICE_OUT_OF_GEOFENCE',
+            employmentType: 'FIELD',
+            forceOutOfGeofence: true,
+          );
+          notifyListeners();
+        }
+      } else {
+        if (_isOfficeOutsideGeofence) {
+          _isOfficeOutsideGeofence = false;
+          debugPrint('[TrackingService] Office employee returned inside office geofence (${distance.toStringAsFixed(1)}m <= ${threshold}m).');
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('[TrackingService] Office geofence check error: $e');
+    }
+  }
+
+  void stopOfficeGeofenceMonitor() {
+    _isOfficeGeofenceMonitoring = false;
+    _isOfficeOutsideGeofence = false;
+    _monitoredOffice = null;
+    _officeGeofenceCheckTimer?.cancel();
+    _officeGeofenceCheckTimer = null;
   }
 }
