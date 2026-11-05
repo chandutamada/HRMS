@@ -13,7 +13,8 @@
     "db:push": "npx prisma db push --schema=packages/database/prisma/schema.prisma",
     "db:seed": "npm --workspace=packages/database run db:seed",
     "api:dev": "npm --workspace=apps/api run start:dev",
-    "api:build": "npm --workspace=apps/api run build",
+    "api:build": "npx prisma generate --schema=packages/database/prisma/schema.prisma && npm --workspace=apps/api run build",
+    "api:start": "npx prisma db push --schema=packages/database/prisma/schema.prisma --accept-data-loss || true && npm --workspace=apps/api run start:prod",
     "api:test": "npm --workspace=apps/api run test",
     "web:dev": "npm --workspace=apps/web run dev",
     "web:build": "npm --workspace=apps/web run build"
