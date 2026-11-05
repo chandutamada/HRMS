@@ -70,14 +70,15 @@ class _HomeTabState extends State<HomeTab> {
             (_todayStatus?['lastCheckOut'] != null);
 
         if (hasCheckedIn && !hasCheckedOut) {
-          final empType = (_homeData['employee']?['workLocationType'] ?? 'OFFICE').toString().toUpperCase();
+          final empType = (widget.userData['employee']?['workLocationType'] ?? 'OFFICE').toString().toUpperCase();
+          final office = _todayStatus?['office'] as Map<String, dynamic>? ?? widget.userData['employee']?['officeLocation'] as Map<String, dynamic>?;
           if (empType == 'OFF_SITE' || empType == 'FIELD') {
             if (!TrackingService().isTracking) {
               TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
             }
           } else {
             if (!TrackingService().isOfficeGeofenceMonitoring) {
-              TrackingService().startOfficeGeofenceMonitor(_homeData['office']);
+              TrackingService().startOfficeGeofenceMonitor(office);
             }
           }
         }
@@ -335,7 +336,8 @@ class _HomeTabState extends State<HomeTab> {
         if (empType == 'FIELD') {
           TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
         } else {
-          TrackingService().startOfficeGeofenceMonitor(_homeData['office']);
+          final office = _todayStatus?['office'] as Map<String, dynamic>? ?? widget.userData['employee']?['officeLocation'] as Map<String, dynamic>?;
+          TrackingService().startOfficeGeofenceMonitor(office);
         }
       } else if (eventType == 'CHECK_OUT') {
         TrackingService().stopOfficeGeofenceMonitor();

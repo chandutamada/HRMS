@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'leave_tab.dart';
 import 'attendance_tab.dart';
-import 'live_tracking_screen.dart';
 
 class ActionTab extends StatelessWidget {
   final Map<String, dynamic> userData;

@@ -64,8 +64,9 @@ class _LoginScreenState extends State<LoginScreen> {
       // 2. Fallback to API if cached user is missing
       final profileRes = await ApiService().dio.get('/auth/me').timeout(const Duration(seconds: 10));
       final user = profileRes.data['data'];
-      if (mounted && user != null) {
+      if (user != null) {
         await ApiService().saveCachedUser(user);
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => MainNavigationScreen(userData: user),
@@ -128,6 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (user != null) {
         await ApiService().saveCachedUser(user);
+        if (!mounted) return;
       }
 
       // Securely store credentials for subsequent one-touch Biometric Login
