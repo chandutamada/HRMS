@@ -1,4 +1,4 @@
-# Superbee Aeronautics — Enterprise HRMS & Field Workforce Management System
+# HRMS & Field Workforce Management System
 
 [![Next.js 14](https://img.shields.io/badge/Next.js-14.2-black?logo=next.js)](https://nextjs.org/)
 [![NestJS 11](https://img.shields.io/badge/NestJS-11.0-E0234E?logo=nestjs)](https://nestjs.com/)
