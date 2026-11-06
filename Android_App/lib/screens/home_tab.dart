@@ -70,9 +70,11 @@ class _HomeTabState extends State<HomeTab> {
             (_todayStatus?['lastCheckOut'] != null);
 
         if (hasCheckedIn && !hasCheckedOut) {
-          final empType = (widget.userData['employee']?['workLocationType'] ?? 'OFFICE').toString().toUpperCase();
+          final rawWork = _todayStatus?['workLocationType']?.toString() ?? widget.userData['employee']?['workLocationType']?.toString();
+          final rawEmp = _todayStatus?['employmentType']?.toString() ?? widget.userData['employee']?['employmentType']?.toString();
+          final isField = rawWork == 'OFF_SITE' || rawEmp == 'FIELD';
           final office = _todayStatus?['office'] as Map<String, dynamic>? ?? widget.userData['employee']?['officeLocation'] as Map<String, dynamic>?;
-          if (empType == 'OFF_SITE' || empType == 'FIELD') {
+          if (isField) {
             if (!TrackingService().isTracking) {
               TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
             }
@@ -246,11 +248,13 @@ class _HomeTabState extends State<HomeTab> {
     final eventType = (hasCheckedIn && !hasCheckedOut) ? 'CHECK_OUT' : 'CHECK_IN';
 
     final employee = widget.userData['employee'] as Map<String, dynamic>? ?? {};
-    final workLocationType = employee['workLocationType']?.toString() ?? 'ON_SITE';
-    final isOffice = workLocationType == 'ON_SITE';
-    final office = _todayStatus?['office'] as Map<String, dynamic>?;
+    final rawWork = _todayStatus?['workLocationType']?.toString() ?? employee['workLocationType']?.toString();
+    final rawEmp = _todayStatus?['employmentType']?.toString() ?? employee['employmentType']?.toString();
+    final isField = rawWork == 'OFF_SITE' || rawEmp == 'FIELD';
+    final isOffice = !isField;
+    final office = _todayStatus?['office'] as Map<String, dynamic>? ?? employee['officeLocation'] as Map<String, dynamic>?;
 
-    // Strict local geofence guard for office employees on both Punch-In and Punch-Out
+    // Strict local geofence guard for office employees on both Punch-In and Punch-Out (bypassed for Field/GPS employees)
     if (isOffice && office != null && office['latitude'] != null && office['longitude'] != null) {
       final offLat = (office['latitude'] as num).toDouble();
       final offLng = (office['longitude'] as num).toDouble();
@@ -331,7 +335,7 @@ class _HomeTabState extends State<HomeTab> {
 
       // Field employee live tracking is triggered strictly from Punch-In till Punch-Out
       // Office employee geofence boundary monitor is activated from Punch-In (tracks if they step outside)
-      final empType = (result['employmentType'] ?? (workLocationType == 'OFF_SITE' ? 'FIELD' : 'OFFICE')).toString().toUpperCase();
+      final empType = (result['employmentType'] ?? (isField ? 'FIELD' : 'OFFICE')).toString().toUpperCase();
       if (eventType == 'CHECK_IN') {
         if (empType == 'FIELD') {
           TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');

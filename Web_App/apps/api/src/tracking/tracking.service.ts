@@ -684,6 +684,7 @@ export class TrackingService {
       where: { id: employeeId },
       data: {
         workLocationType: dto.workLocationType,
+        employmentType: dto.workLocationType === 'OFF_SITE' ? 'FIELD' : 'OFFICE',
       },
     });
 

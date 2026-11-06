@@ -121,9 +121,11 @@ export class AttendanceService {
     let validationStatus: GeofenceValidationStatus = GeofenceValidationStatus.VALID;
     let suspiciousDetails: string | null = null;
     
-    // Differentiate between OFFICE and FIELD employees
-    const employmentType = (employee as any).employmentType || (employee.workLocationType === 'OFF_SITE' ? 'FIELD' : 'OFFICE');
-    const isOfficeEmployee = employmentType === 'OFFICE';
+    // Differentiate between OFFICE and FIELD employees:
+    // Field / GPS employees have workLocationType === 'OFF_SITE' or employmentType === 'FIELD'.
+    // They are completely exempt from geofencing and can punch in / punch out from anywhere.
+    const isFieldEmployee = employee.workLocationType === 'OFF_SITE' || (employee as any).employmentType === 'FIELD';
+    const isOfficeEmployee = !isFieldEmployee;
 
     if (dto.isMocked) {
       validationStatus = GeofenceValidationStatus.MOCKED_LOCATION;
@@ -133,17 +135,17 @@ export class AttendanceService {
       validationStatus = GeofenceValidationStatus.INACCURATE_GPS;
       suspiciousDetails = `High GPS inaccuracy: ${dto.accuracyMeters}m (Threshold: 100m)`;
     } else if (isOfficeEmployee) {
-      // If employmentType === 'OFFICE': Enforce strict office geofence validation via Haversine distance (radius <= 50m). Reject if outside.
-      const maxOfficeRadius = Math.min(office.radiusMeters || 50, 50);
-      if (distanceMeters > maxOfficeRadius) {
+      // Office employees: enforce customized office geofence radius validation (as configured by HR, default 50m). Reject if outside.
+      const officeRadius = Number(office.radiusMeters) > 0 ? Number(office.radiusMeters) : 50;
+      if (distanceMeters > officeRadius) {
         validationStatus = GeofenceValidationStatus.OUTSIDE_GEOFENCE;
         const actionName = dto.eventType === AttendanceEventType.CHECK_IN ? 'punch in' : 'punch out';
         throw new BadRequestException(
-          `Punch rejected: You are outside the strict office geofence perimeter (${Math.round(distanceMeters)}m from ${office.name}, maximum allowed radius: ${maxOfficeRadius}m). Office employees must ${actionName} from inside the office boundary.`,
+          `Punch rejected: You are outside the strict office geofence perimeter (${Math.round(distanceMeters)}m from ${office.name}, maximum allowed radius: ${officeRadius}m). Office employees must ${actionName} from inside the office boundary.`,
         );
       }
     } else {
-      // If employmentType === 'FIELD': Bypass office geofence radius validation.
+      // Field employees: bypass office geofence radius validation completely. Can punch-in and punch-out from anywhere.
       validationStatus = GeofenceValidationStatus.VALID;
     }
 
@@ -329,6 +331,9 @@ export class AttendanceService {
           batteryPercentage: dto.batteryPercentage,
           status: attendanceRecord.status,
           message: `Already checked in today at ${prevCheckInTime}.`,
+          workLocationType: employee.workLocationType,
+          employmentType: isFieldEmployee ? 'FIELD' : 'OFFICE',
+          isOfficeEmployee,
         };
       }
 
@@ -444,9 +449,14 @@ export class AttendanceService {
         timingMessage,
         batteryPercentage: dto.batteryPercentage,
         status: updatedRecord.status,
-        message: isWithin
-          ? `${timingMessage} (Geofence verified: ${office.name})`
-          : `Punch recorded (Warning: ${Math.round(distanceMeters)}m from ${office.name}). ${timingMessage}`,
+        message: isFieldEmployee
+          ? `${timingMessage} (Field/GPS Punch verified)`
+          : (isWithin
+              ? `${timingMessage} (Geofence verified: ${office.name})`
+              : `Punch recorded (${Math.round(distanceMeters)}m from ${office.name}). ${timingMessage}`),
+        workLocationType: employee.workLocationType,
+        employmentType: isFieldEmployee ? 'FIELD' : 'OFFICE',
+        isOfficeEmployee,
       };
 
       return {
@@ -461,9 +471,10 @@ export class AttendanceService {
         throw new BadRequestException('Cannot punch out before punching in for the day');
       }
 
-      if (isOfficeEmployee && !isWithin) {
+      const officeRadius = Number(office.radiusMeters) > 0 ? Number(office.radiusMeters) : 50;
+      if (isOfficeEmployee && distanceMeters > officeRadius) {
         throw new BadRequestException(
-          `Punch-out rejected: You must be inside the office geofence perimeter to punch out (${Math.round(distanceMeters)}m from ${office.name}, allowed radius: ${office.radiusMeters}m).`,
+          `Punch-out rejected: You must be inside the office geofence perimeter to punch out (${Math.round(distanceMeters)}m from ${office.name}, allowed radius: ${officeRadius}m). Office employees must punch out from inside the office boundary.`,
         );
       }
 
@@ -495,6 +506,9 @@ export class AttendanceService {
         totalWorkingHoursFormatted,
         batteryPercentage: dto.batteryPercentage,
         message: `Punched Out Successfully! Today's Total Working Hours: ${totalWorkingHoursFormatted}.`,
+        workLocationType: employee.workLocationType,
+        employmentType: isFieldEmployee ? 'FIELD' : 'OFFICE',
+        isOfficeEmployee,
       };
 
       return {
@@ -541,10 +555,15 @@ export class AttendanceService {
       },
     });
 
+    const isFieldEmployee = employee?.workLocationType === 'OFF_SITE' || (employee as any)?.employmentType === 'FIELD';
+
     return {
       date: istDateString,
       employeeName: `${employee?.firstName} ${employee?.lastName}`,
       employeeCode: employee?.employeeCode,
+      workLocationType: employee?.workLocationType || 'ON_SITE',
+      employmentType: isFieldEmployee ? 'FIELD' : 'OFFICE',
+      isOfficeEmployee: !isFieldEmployee,
       office: employee?.officeLocation
         ? {
             id: employee.officeLocation.id,

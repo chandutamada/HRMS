@@ -129,6 +129,8 @@ export class AuthService {
               email: user.employee.email,
               phone: user.employee.phone,
               avatarUrl: user.employee.avatarUrl,
+              workLocationType: user.employee.workLocationType,
+              employmentType: (user.employee as any).employmentType || (user.employee.workLocationType === 'OFF_SITE' ? 'FIELD' : 'OFFICE'),
               department: user.employee.department?.name,
               designation: user.employee.designation?.title,
               office: user.employee.officeLocation
@@ -312,6 +314,8 @@ export class AuthService {
               email: user.employee.email,
               phone: user.employee.phone,
               avatarUrl: user.employee.avatarUrl,
+              workLocationType: user.employee.workLocationType,
+              employmentType: (user.employee as any).employmentType || (user.employee.workLocationType === 'OFF_SITE' ? 'FIELD' : 'OFFICE'),
               department: user.employee.department?.name,
               designation: user.employee.designation?.title,
               office: user.employee.officeLocation

@@ -250,6 +250,7 @@ export class EmployeesService {
           phone: dto.phone,
           gender: dto.gender,
           workLocationType: dto.workLocationType || 'ON_SITE',
+          employmentType: (dto.workLocationType === 'OFF_SITE' || (dto as any).employmentType === 'FIELD') ? 'FIELD' : 'OFFICE',
           joiningDate: new Date(dto.joiningDate),
           dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           employmentStatus: dto.employmentStatus || 'FULL_TIME',
@@ -358,6 +359,12 @@ export class EmployeesService {
       ...(restDto.officeLocationId === '' ? { officeLocationId: null } : {}),
       ...(restDto.reportingManagerId === '' ? { reportingManagerId: null } : {}),
     };
+
+    if (dataToUpdate.workLocationType) {
+      dataToUpdate.employmentType = dataToUpdate.workLocationType === 'OFF_SITE' ? 'FIELD' : 'OFFICE';
+    } else if (dataToUpdate.employmentType) {
+      dataToUpdate.workLocationType = dataToUpdate.employmentType === 'FIELD' ? 'OFF_SITE' : 'ON_SITE';
+    }
 
     // If firstName or lastName is provided, sanitize whitespace
     if (dataToUpdate.firstName) dataToUpdate.firstName = dataToUpdate.firstName.trim();

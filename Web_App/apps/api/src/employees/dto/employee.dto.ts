@@ -8,7 +8,7 @@ import {
   IsDateString,
   MinLength,
 } from 'class-validator';
-import { EmploymentStatus, Gender, WorkLocationType } from '@prisma/client';
+import { EmploymentStatus, Gender, WorkLocationType, EmploymentType } from '@prisma/client';
 
 export class CreateEmployeeDto {
   @ApiProperty({ example: 'SB-003' })
@@ -66,6 +66,11 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsEnum(WorkLocationType)
   workLocationType?: WorkLocationType;
+
+  @ApiProperty({ required: false, enum: EmploymentType })
+  @IsOptional()
+  @IsEnum(EmploymentType)
+  employmentType?: EmploymentType;
 
   @ApiProperty({ required: false, description: 'Department ID' })
   @IsOptional()
@@ -173,6 +178,11 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsEnum(WorkLocationType)
   workLocationType?: WorkLocationType;
+
+  @ApiProperty({ required: false, enum: EmploymentType })
+  @IsOptional()
+  @IsEnum(EmploymentType)
+  employmentType?: EmploymentType;
 
   @ApiProperty({ required: false })
   @IsOptional()

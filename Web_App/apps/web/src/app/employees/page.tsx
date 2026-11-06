@@ -308,6 +308,7 @@ export default function EmployeesPage() {
         deviceUserId: fDevId.trim() || undefined,
         joiningDate: fJoining,
         workLocationType: fAttType === 'gps' ? 'OFF_SITE' : 'ON_SITE',
+        employmentType: fAttType === 'gps' ? 'FIELD' : 'OFFICE',
         password: assignedPassword,
       });
 
@@ -370,6 +371,7 @@ export default function EmployeesPage() {
         shiftId: editShiftId || null,
         designationTitle: editDesig.trim() || undefined,
         workLocationType: editAttType === 'gps' ? 'OFF_SITE' : 'ON_SITE',
+        employmentType: editAttType === 'gps' ? 'FIELD' : 'OFFICE',
       };
 
       await api.put(`/employees/${editingEmp.id}`, payload);

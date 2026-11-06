@@ -25,6 +25,15 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         // Column already exists or handled by DB, safe to ignore
       }
     }
+
+    try {
+      // Ensure all GPS/Field employees (OFF_SITE) have employmentType = 'FIELD'
+      await this.$executeRawUnsafe(`
+        UPDATE employees 
+        SET employmentType = 'FIELD' 
+        WHERE workLocationType = 'OFF_SITE' AND employmentType != 'FIELD'
+      `);
+    } catch (_) {}
   }
 
   async onModuleDestroy() {
