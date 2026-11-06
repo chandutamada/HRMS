@@ -45,16 +45,26 @@ export const KNOWN_COMPANIES: Company[] = [
     name: 'Gram Tarang Inclusive Development Services Private Limited',
   },
   {
-    id: 'GTIB',
-    code: 'GTIB',
-    name: 'Gram Tarang Insurance and Brokering Private Limited',
+    id: 'CUTMAP',
+    code: 'CUTMAP',
+    name: 'Centurion University Admission Staff',
   },
 ];
 
 function mergeWithKnownCompanies(fetched: Company[]): Company[] {
   const map = new Map<string, Company>();
   (fetched || []).forEach((c) => {
-    if (c?.code) map.set(c.code.toUpperCase(), c);
+    if (c?.code) {
+      if (c.code.toUpperCase() === 'GTIB') {
+        map.set('CUTMAP', {
+          ...c,
+          code: 'CUTMAP',
+          name: 'Centurion University Admission Staff',
+        });
+      } else {
+        map.set(c.code.toUpperCase(), c);
+      }
+    }
   });
   KNOWN_COMPANIES.forEach((k) => {
     if (!map.has(k.code.toUpperCase())) {
@@ -98,9 +108,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(parsedUser);
 
         if (savedActiveCompany) {
-          setActiveCompany(JSON.parse(savedActiveCompany));
+          try {
+            const parsed = JSON.parse(savedActiveCompany);
+            if (parsed?.code?.toUpperCase() === 'GTIB') {
+              parsed.code = 'CUTMAP';
+              parsed.name = 'Centurion University Admission Staff';
+              localStorage.setItem('hrms_active_company', JSON.stringify(parsed));
+            }
+            setActiveCompany(parsed);
+          } catch (_) {
+            setActiveCompany(JSON.parse(savedActiveCompany));
+          }
         } else if (parsedUser.company) {
-          setActiveCompany(parsedUser.company);
+          const comp = { ...parsedUser.company };
+          if (comp?.code?.toUpperCase() === 'GTIB') {
+            comp.code = 'CUTMAP';
+            comp.name = 'Centurion University Admission Staff';
+          }
+          setActiveCompany(comp);
         }
 
         // Fetch authorized companies

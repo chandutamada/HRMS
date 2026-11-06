@@ -25,7 +25,7 @@ export class CircularsController {
   @Roles('SUPER_ADMIN', 'HR_ADMIN', 'HR_MANAGER')
   @ApiOperation({
     summary:
-      'Publish company circular (Select target companies via checkboxes: SUPERBEE, GTIDS, GTIB)',
+      'Publish company circular (Select target companies via checkboxes: SUPERBEE, GTIDS, CUTMAP)',
   })
   create(@Body() dto: CreateCircularDto, @CurrentUser() user: AuthenticatedUser) {
     return this.circularsService.create(dto, user);

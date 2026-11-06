@@ -23,7 +23,7 @@ export class CreateCircularDto {
   content: string;
 
   @ApiProperty({
-    example: ['SUPERBEE', 'GTIDS', 'GTIB'],
+    example: ['SUPERBEE', 'GTIDS', 'CUTMAP'],
     description: 'Target company codes selected via checkboxes',
   })
   @IsNotEmpty()

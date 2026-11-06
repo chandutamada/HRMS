@@ -34,6 +34,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         WHERE workLocationType = 'OFF_SITE' AND employmentType != 'FIELD'
       `);
     } catch (_) {}
+
+    try {
+      // Rebrand GTIB to CUTMAP: Centurion University Admission Staff
+      await this.$executeRawUnsafe(`
+        UPDATE companies 
+        SET code = 'CUTMAP', name = 'Centurion University Admission Staff' 
+        WHERE code = 'GTIB'
+      `);
+      this.logger.log('Database verified: GTIB rebranded to CUTMAP (Centurion University Admission Staff).');
+    } catch (_) {}
   }
 
   async onModuleDestroy() {

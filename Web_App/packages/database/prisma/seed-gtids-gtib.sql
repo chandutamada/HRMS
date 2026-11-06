@@ -24,16 +24,16 @@ VALUES (
 )
 ON DUPLICATE KEY UPDATE `name` = VALUES(`name`), `legalName` = VALUES(`legalName`), `updatedAt` = NOW(3);
 
--- 2. Insert GTIB Company
+-- 2. Insert CUTMAP Company
 INSERT INTO `companies` (`id`, `code`, `name`, `legalName`, `email`, `phone`, `website`, `address`, `status`, `createdAt`, `updatedAt`)
 VALUES (
     'gtib-company-uuid-002',
-    'GTIB',
-    'Gram Tarang Insurance and Brokering Private Limited',
-    'Gram Tarang Insurance and Brokering Private Limited',
-    'hr@gtib.in',
+    'CUTMAP',
+    'Centurion University Admission Staff',
+    'Centurion University Admission Staff',
+    'admissions@cutmap.ac.in',
     '+91 891 234 5680',
-    'https://gramtarang.org/',
+    'https://cutm.ac.in/',
     'Centurion University Campus, Tekkali Village, Nellimarla, Vizianagaram, Andhra Pradesh 535003',
     'ACTIVE',
     NOW(3),

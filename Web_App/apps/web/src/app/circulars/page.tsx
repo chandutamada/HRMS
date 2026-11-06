@@ -21,7 +21,7 @@ export default function CircularsPage() {
   // Form State
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [selectedCompanies, setSelectedCompanies] = useState<string[]>(['SUPERBEE', 'GTIDS', 'GTIB']);
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>(['SUPERBEE', 'GTIDS', 'CUTMAP']);
   const [requiresAck, setRequiresAck] = useState(true);
 
   // Stats Modal
@@ -87,7 +87,7 @@ export default function CircularsPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Company Circulars & Announcements</h1>
           <p className="text-xs text-slate-500">
-            Target circulars by company checkboxes (SUPERBEE, GTIDS, GTIB) and monitor employee acknowledgements.
+            Target circulars by company checkboxes (SUPERBEE, GTIDS, CUTMAP) and monitor employee acknowledgements.
           </p>
         </div>
 
@@ -176,7 +176,7 @@ export default function CircularsPage() {
                   Target Companies (Select Checkboxes)
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {['SUPERBEE', 'GTIDS', 'GTIB'].map((code) => {
+                  {['SUPERBEE', 'GTIDS', 'CUTMAP'].map((code) => {
                     const isChecked = selectedCompanies.includes(code);
                     return (
                       <label

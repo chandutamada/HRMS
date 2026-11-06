@@ -383,25 +383,37 @@ export async function seedGtidsAndGtib() {
   }
 
   // =========================================================================
-  // 2. COMPANY 3: GTIB (Gram Tarang Insurance and Brokering Private Limited)
+  // 2. COMPANY 3: CUTMAP (Centurion University Admission Staff)
   // =========================================================================
-  let gtibCompany = await prisma.company.findUnique({ where: { code: 'GTIB' } });
-  if (!gtibCompany) {
+  let gtibCompany = await prisma.company.findFirst({ where: { OR: [{ code: 'CUTMAP' }, { code: 'GTIB' }] } });
+  if (gtibCompany) {
+    if (gtibCompany.code !== 'CUTMAP' || gtibCompany.name !== 'Centurion University Admission Staff') {
+      gtibCompany = await prisma.company.update({
+        where: { id: gtibCompany.id },
+        data: {
+          code: 'CUTMAP',
+          name: 'Centurion University Admission Staff',
+          legalName: 'Centurion University Admission Staff',
+        },
+      });
+      console.log('✓ Updated Company: CUTMAP (Centurion University Admission Staff)');
+    } else {
+      console.log('ℹ CUTMAP company already exists.');
+    }
+  } else {
     gtibCompany = await prisma.company.create({
       data: {
-        code: 'GTIB',
-        name: 'Gram Tarang Insurance and Brokering Private Limited',
-        legalName: 'Gram Tarang Insurance and Brokering Private Limited',
-        email: 'hr@gtib.in',
+        code: 'CUTMAP',
+        name: 'Centurion University Admission Staff',
+        legalName: 'Centurion University Admission Staff',
+        email: 'admissions@cutmap.ac.in',
         phone: '+91 891 234 5680',
-        website: 'https://gramtarang.org/',
+        website: 'https://cutm.ac.in/',
         address: 'Centurion University Campus, Tekkali Village, Nellimarla, Vizianagaram, Andhra Pradesh 535003',
         status: CompanyStatus.ACTIVE,
       },
     });
-    console.log('✓ Created Company: GTIB (Gram Tarang Insurance and Brokering Private Limited)');
-  } else {
-    console.log('ℹ GTIB company already exists.');
+    console.log('✓ Created Company: CUTMAP (Centurion University Admission Staff)');
   }
 
   // Office Location for GTIB

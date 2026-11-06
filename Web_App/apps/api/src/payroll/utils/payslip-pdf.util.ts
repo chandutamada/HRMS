@@ -102,7 +102,7 @@ export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> 
     const compName = data.companyName || 'Superbee Aeronautics Private Limited';
     const compUpper = compName.toUpperCase();
     const isGtids = compUpper.includes('GTIDS') || compUpper.includes('INCLUSIVE');
-    const isGtib = compUpper.includes('GTIB') || compUpper.includes('INSURANCE') || compUpper.includes('INSURENCE');
+    const isCutmap = compUpper.includes('CUTMAP') || compUpper.includes('CENTURION') || compUpper.includes('GTIB') || compUpper.includes('INSURANCE') || compUpper.includes('INSURENCE');
 
     let badgeText = 'S U P E R B E E';
     let companyShortTitle = 'SUPERBEE AERONAUTICS';
@@ -116,12 +116,12 @@ export function generatePayslipPdfBuffer(data: PayslipPdfData): Promise<Buffer> 
       refPrefix = 'GTIDS';
       defaultAddress = 'Address: Centurion University Campus, Tekkali Village, Nellimarla, Vizianagaram, Andhra Pradesh 535003';
       corporateOffice = 'Corporate office: Gram Tarang Inclusive Development Services Pvt. Ltd., Vizianagaram, AP-535003.';
-    } else if (isGtib) {
-      badgeText = 'G T I B';
-      companyShortTitle = 'GTIB PVT. LTD.';
-      refPrefix = 'GTIB';
+    } else if (isCutmap) {
+      badgeText = 'C U T M A P';
+      companyShortTitle = 'CENTURION UNIVERSITY ADMISSION STAFF';
+      refPrefix = 'CUTMAP';
       defaultAddress = 'Address: Centurion University Campus, Tekkali Village, Nellimarla, Vizianagaram, Andhra Pradesh 535003';
-      corporateOffice = 'Corporate office: Gram Tarang Insurance and Brokering Pvt. Ltd., Vizianagaram, AP-535003.';
+      corporateOffice = 'Corporate office: Centurion University Admission Staff, Vizianagaram, AP-535003.';
     }
 
     const doc = new PDFDocument({

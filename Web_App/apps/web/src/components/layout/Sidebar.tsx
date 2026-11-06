@@ -49,6 +49,17 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { activeCompany } = useAuth();
 
+  const isCutmap = activeCompany?.code?.toUpperCase() === 'CUTMAP';
+
+  // For CUTMAP (Centurion University Admission Staff), remove Notifications & Feed, Leave Management, Payroll Management, IT Helpdesk
+  const filteredMainNav = isCutmap
+    ? mainNav.filter((item) => !['Notifications & Feed', 'Leave Management', 'Payroll Management'].includes(item.name))
+    : mainNav;
+
+  const filteredAdminNav = isCutmap
+    ? adminNav.filter((item) => item.name !== 'IT Helpdesk')
+    : adminNav;
+
   const renderLink = (item: { name: string; href: string; icon: any }) => {
     const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(`${item.href}`));
     const Icon = item.icon;
@@ -90,7 +101,7 @@ export default function Sidebar() {
       <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
         {/* Main Section */}
         <div className="space-y-1">
-          {mainNav.map(renderLink)}
+          {filteredMainNav.map(renderLink)}
         </div>
 
         {/* Attendance Reports Section */}
@@ -109,7 +120,7 @@ export default function Sidebar() {
             Administration
           </span>
           <div className="space-y-1 mt-1">
-            {adminNav.map(renderLink)}
+            {filteredAdminNav.map(renderLink)}
           </div>
         </div>
       </nav>

@@ -40,7 +40,7 @@ export default function Navbar() {
   const getCompanyColor = (code?: string) => {
     const c = (code || '').toUpperCase();
     if (c.includes('GTIDS')) return 'bg-emerald-600';
-    if (c.includes('GTIB')) return 'bg-purple-600';
+    if (c.includes('CUTMAP') || c.includes('GTIB')) return 'bg-purple-600';
     return 'bg-blue-600';
   };
 
