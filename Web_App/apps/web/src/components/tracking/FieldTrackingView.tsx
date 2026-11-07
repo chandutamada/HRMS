@@ -1,16 +1,20 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import dynamic from 'next/dynamic';
+import React, { useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { io, Socket } from 'socket.io-client';
 import { MapPin, Navigation, Clock, Battery, Activity } from 'lucide-react';
 
-// Leaflet dynamic import to prevent SSR window issues in Next.js
-const MapContainer = dynamic(() => import('react-leaflet').then((m) => m.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import('react-leaflet').then((m) => m.TileLayer), { ssr: false });
-const Polyline = dynamic(() => import('react-leaflet').then((m) => m.Polyline), { ssr: false });
-const Marker = dynamic(() => import('react-leaflet').then((m) => m.Marker), { ssr: false });
-const Popup = dynamic(() => import('react-leaflet').then((m) => m.Popup), { ssr: false });
+interface StopItem {
+  index: number;
+  lat: number;
+  lng: number;
+  address: string;
+  arrivalIst: string;
+  departureIst: string;
+  durationFormatted: string;
+}
 
 export default function FieldTrackingView({
   employeeCode,
@@ -19,25 +23,101 @@ export default function FieldTrackingView({
   employeeCode: string;
   companyId: string;
 }) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.Marker | null>(null);
+  const polylineRef = useRef<L.Polyline | null>(null);
+  const stopMarkersRef = useRef<L.Marker[]>([]);
+
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [waypoints, setWaypoints] = useState<[number, number][]>([]);
-  const [stops, setStops] = useState<any[]>([]);
+  const [stops, setStops] = useState<StopItem[]>([]);
   const [livePos, setLivePos] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 1. Fetch History from NestJS Proxy
+  // Initialize Leaflet Map safely on client
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = L.map(mapContainerRef.current, {
+      center: [18.1895, 83.3871],
+      zoom: 14,
+      zoomControl: true,
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    const polyline = L.polyline([], {
+      color: '#3b82f6',
+      weight: 5,
+      opacity: 0.85,
+      lineJoin: 'round',
+    }).addTo(map);
+
+    mapRef.current = map;
+    polylineRef.current = polyline;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+      polylineRef.current = null;
+    };
+  }, []);
+
+  // Fetch History from NestJS Proxy
   useEffect(() => {
     async function loadHistory() {
       setIsLoading(true);
       try {
-        const res = await fetch(`/api/tracking/history?employeeCode=${encodeURIComponent(employeeCode)}&date=${selectedDate}`);
+        const res = await fetch(
+          `/api/tracking/history?employeeCode=${encodeURIComponent(employeeCode)}&date=${selectedDate}`
+        );
         if (res.ok) {
           const data = await res.json();
-          if (data.waypoints) {
-            setWaypoints(data.waypoints.map((w: any) => [w.lat, w.lng]));
-          }
-          if (data.stops) {
-            setStops(data.stops);
+          const waypoints: Array<[number, number]> = (data.waypoints || []).map((w: any) => [w.lat, w.lng]);
+          const loadedStops: StopItem[] = data.stops || [];
+
+          setStops(loadedStops);
+
+          if (mapRef.current && polylineRef.current) {
+            polylineRef.current.setLatLngs(waypoints);
+
+            // Clear previous stop markers
+            stopMarkersRef.current.forEach((m) => m.remove());
+            stopMarkersRef.current = [];
+
+            // Add stop markers
+            loadedStops.forEach((stop) => {
+              const stopIcon = L.divIcon({
+                className: 'stop-marker-icon',
+                html: `
+                  <div style="background:#ef4444;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">
+                    ${stop.index}
+                  </div>
+                `,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12],
+              });
+
+              const stopMarker = L.marker([stop.lat, stop.lng], { icon: stopIcon })
+                .bindPopup(`
+                  <div style="font-size:12px;font-family:sans-serif;">
+                    <b>Stop #${stop.index}</b> (${stop.durationFormatted})<br/>
+                    ${stop.address}<br/>
+                    Time: ${stop.arrivalIst} – ${stop.departureIst}
+                  </div>
+                `)
+                .addTo(mapRef.current!);
+
+              stopMarkersRef.current.push(stopMarker);
+            });
+
+            if (waypoints.length > 0) {
+              mapRef.current.fitBounds(polylineRef.current.getBounds(), { padding: [40, 40] });
+            }
           }
         }
       } catch (_) {
@@ -48,7 +128,7 @@ export default function FieldTrackingView({
     loadHistory();
   }, [employeeCode, selectedDate]);
 
-  // 2. Connect Socket.io for Real-Time Moving Marker
+  // Connect Socket.io for Real-Time Moving Marker
   useEffect(() => {
     const socketUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
     const socket: Socket = io(socketUrl, {
@@ -63,8 +143,39 @@ export default function FieldTrackingView({
     socket.on('field-tracking', (telemetry: any) => {
       if (telemetry.employeeCode === employeeCode) {
         setLivePos(telemetry);
-        // Append live fix to polyline dynamically
-        setWaypoints((prev) => [...prev, [telemetry.latitude, telemetry.longitude]]);
+
+        if (mapRef.current) {
+          const latLng: [number, number] = [telemetry.latitude, telemetry.longitude];
+
+          // Add point to polyline
+          if (polylineRef.current) {
+            polylineRef.current.addLatLng(latLng);
+          }
+
+          // Update or create live marker
+          if (!markerRef.current) {
+            const liveIcon = L.divIcon({
+              className: 'live-worker-icon',
+              html: `
+                <div style="position:relative;width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
+                  <div style="position:absolute;width:36px;height:36px;border-radius:50%;background:rgba(59,130,246,0.35);animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>
+                  <div style="position:absolute;width:24px;height:24px;border-radius:50%;background:#2563eb;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;">🚗</div>
+                </div>
+              `,
+              iconSize: [36, 36],
+              iconAnchor: [18, 18],
+            });
+
+            markerRef.current = L.marker(latLng, { icon: liveIcon })
+              .bindPopup(`<b>${telemetry.employeeName || employeeCode}</b><br/>Speed: ${telemetry.speedKmh} km/h`)
+              .addTo(mapRef.current);
+          } else {
+            markerRef.current.setLatLng(latLng);
+            markerRef.current.setPopupContent(
+              `<b>${telemetry.employeeName || employeeCode}</b><br/>Speed: ${telemetry.speedKmh} km/h`
+            );
+          }
+        }
       }
     });
 
@@ -128,52 +239,9 @@ export default function FieldTrackingView({
         </div>
       </div>
 
-      {/* Main Map View */}
+      {/* Main Map Canvas */}
       <div className="flex-1 relative">
-        <MapContainer
-          center={livePos ? [livePos.latitude, livePos.longitude] : (waypoints[0] || [18.1895, 83.3871])}
-          zoom={14}
-          className="h-full w-full"
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-
-          {/* Road-accurate Polyline */}
-          {waypoints.length > 1 && (
-            <Polyline
-              positions={waypoints}
-              pathOptions={{ color: '#3b82f6', weight: 5, opacity: 0.8, lineJoin: 'round' }}
-            />
-          )}
-
-          {/* Stop Markers */}
-          {stops.map((stop) => (
-            <Marker key={stop.index} position={[stop.lat, stop.lng]}>
-              <Popup>
-                <div className="text-xs font-sans">
-                  <b>Stop #{stop.index}</b> ({stop.durationFormatted})<br />
-                  {stop.address}<br />
-                  Time: {stop.arrivalIst} – {stop.departureIst}
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-
-          {/* Live Position Marker */}
-          {livePos && (
-            <Marker position={[livePos.latitude, livePos.longitude]}>
-              <Popup>
-                <div className="text-xs">
-                  <b>{livePos.employeeName}</b><br />
-                  Speed: {livePos.speedKmh} km/h<br />
-                  Battery: {livePos.battery}%
-                </div>
-              </Popup>
-            </Marker>
-          )}
-        </MapContainer>
+        <div ref={mapContainerRef} className="h-full w-full" />
       </div>
     </div>
   );
