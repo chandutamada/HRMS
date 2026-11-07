@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+<properties>
+    <!-- Traccar Database Configuration (PostgreSQL) -->
+    <entry key='database.driver'>org.postgresql.Driver</entry>
+    <entry key='database.url'>jdbc:postgresql://postgres:5432/traccar</entry>
+    <entry key='database.user'>traccar</entry>
+    <entry key='database.password'>traccar_secret</entry>
+
+    <!-- OsmAnd Ingestion Protocol Port -->
+    <entry key='osmand.port'>5055</entry>
+
+    <!-- Trip & Stationary Stop Calculation Rules -->
+    <entry key='report.trip.minimalTripDistance'>50</entry>
+    <entry key='report.trip.minimalTripDuration'>60</entry>
+    <entry key='report.trip.minimalParkingDuration'>180</entry> <!-- 3 mins stationary = Stop -->
+
+    <!-- Forward Positions to NestJS Backend Webhook -->
+    <entry key='event.forward.enable'>true</entry>
+    <entry key='event.forward.url'>http://api:4000/api/tracking/traccar-webhook</entry>
+    <entry key='forward.enable'>true</entry>
+    <entry key='forward.url'>http://api:4000/api/tracking/traccar-webhook?deviceId={uniqueId}&amp;lat={latitude}&amp;lon={longitude}&amp;speed={speed}&amp;bearing={course}&amp;altitude={altitude}&amp;batt={attributes.batteryLevel}&amp;time={fixTime}</entry>
+</properties>

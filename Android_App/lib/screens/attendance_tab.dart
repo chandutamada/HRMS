@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
 import '../services/tracking_service.dart';
+import '../services/traccar_service.dart';
 import '../widgets/face_capture_dialog.dart';
 
 class AttendanceTab extends StatefulWidget {
@@ -190,13 +191,16 @@ class _AttendanceTabState extends State<AttendanceTab> {
         final empType = (data['employmentType'] ?? (isField ? 'FIELD' : 'OFFICE')).toString().toUpperCase();
         if (eventType == 'CHECK_IN') {
           if (empType == 'FIELD') {
+            final empCode = widget.userData['employee']?['employeeCode'] ?? widget.userData['employeeCode'] ?? 'EMP';
             TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
+            TraccarService().startTracking(employeeCode: empCode.toString());
           } else {
             TrackingService().startOfficeGeofenceMonitor(_todayStatus?['office']);
           }
         } else if (eventType == 'CHECK_OUT') {
           TrackingService().stopOfficeGeofenceMonitor();
           TrackingService().stopTracking();
+          TraccarService().stopTracking();
         }
 
         _showPunchFeedbackDialog(data, eventType, batteryLevel);

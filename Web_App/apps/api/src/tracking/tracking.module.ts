@@ -8,6 +8,7 @@ import {
   LiveLocationCompatController,
   SessionsCompatController,
 } from './tracking.controller';
+import { TrackingTraccarController } from './tracking-traccar.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
@@ -25,6 +26,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     TrackingController,
     LiveLocationCompatController,
     SessionsCompatController,
+    TrackingTraccarController,
   ],
   providers: [
     TrackingService,

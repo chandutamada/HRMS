@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
 import '../services/location_service.dart';
 import '../services/tracking_service.dart';
+import '../services/traccar_service.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/face_capture_dialog.dart';
 import 'my_calendar_screen.dart';
@@ -338,7 +339,9 @@ class _HomeTabState extends State<HomeTab> {
       final empType = (result['employmentType'] ?? (isField ? 'FIELD' : 'OFFICE')).toString().toUpperCase();
       if (eventType == 'CHECK_IN') {
         if (empType == 'FIELD') {
+          final empCode = widget.userData['employee']?['employeeCode'] ?? widget.userData['employeeCode'] ?? 'EMP';
           TrackingService().startTracking(workType: 'FIELD', employmentType: 'FIELD');
+          TraccarService().startTracking(employeeCode: empCode.toString());
         } else {
           final office = _todayStatus?['office'] as Map<String, dynamic>? ?? widget.userData['employee']?['officeLocation'] as Map<String, dynamic>?;
           TrackingService().startOfficeGeofenceMonitor(office);
@@ -346,6 +349,7 @@ class _HomeTabState extends State<HomeTab> {
       } else if (eventType == 'CHECK_OUT') {
         TrackingService().stopOfficeGeofenceMonitor();
         TrackingService().stopTracking();
+        TraccarService().stopTracking();
       }
 
       if (mounted) {
