@@ -67,6 +67,15 @@ export class EmployeesService {
           designation: true,
           officeLocation: true,
           shift: true,
+          reportingManager: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeCode: true,
+              email: true,
+            },
+          },
         },
         skip,
         take: limit,
@@ -77,6 +86,7 @@ export class EmployeesService {
     return {
       items: items.map((emp) => ({
         ...emp,
+        deviceUserId: (emp as any).deviceUserId || emp.emergencyContactRelation || emp.employeeCode,
         officeLocation: emp.officeLocation
           ? {
               ...emp.officeLocation,
@@ -218,8 +228,9 @@ export class EmployeesService {
 
       // 3. Resolve Designation if designationTitle is provided
       let designationId = dto.designationId || null;
-      if (!designationId && dto.designationTitle?.trim()) {
-        const title = dto.designationTitle.trim();
+      const desigTitle = dto.designationTitle?.trim() || (dto as any).designation?.trim();
+      if (!designationId && desigTitle) {
+        const title = desigTitle;
         const code = title.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 40);
         const existingDesig = await tx.designation.findFirst({
           where: { companyId: targetCompanyId, title },
@@ -238,6 +249,51 @@ export class EmployeesService {
         }
       }
 
+      // 3b. Resolve Department if departmentTitle/department is provided
+      let departmentId = dto.departmentId || null;
+      const deptTitle = dto.departmentTitle?.trim() || (dto as any).department?.trim() || (dto as any).departmentName?.trim();
+      if (!departmentId && deptTitle) {
+        const title = deptTitle;
+        const code = title.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 20);
+        const existingDept = await tx.department.findFirst({
+          where: { companyId: targetCompanyId, name: title },
+        });
+        if (existingDept) {
+          departmentId = existingDept.id;
+        } else {
+          const createdDept = await tx.department.create({
+            data: {
+              companyId: targetCompanyId,
+              name: title,
+              code: `${code}_${Math.floor(1000 + Math.random() * 9000)}`,
+            },
+          });
+          departmentId = createdDept.id;
+        }
+      }
+
+      // 3c. Resolve Reporting Manager if code, email, or name is provided
+      let reportingManagerId = dto.reportingManagerId || null;
+      const mgrRef = dto.reportingManager?.trim() || (dto as any).reporting_manager?.trim();
+      if (!reportingManagerId && mgrRef) {
+        const mgr = await tx.employee.findFirst({
+          where: {
+            companyId: targetCompanyId,
+            OR: [
+              { employeeCode: mgrRef },
+              { email: mgrRef },
+              { firstName: { contains: mgrRef } },
+              { lastName: { contains: mgrRef } },
+            ],
+          },
+        });
+        if (mgr) {
+          reportingManagerId = mgr.id;
+        }
+      }
+
+      const deviceIdVal = dto.deviceUserId || (dto as any).device_user_id || dto.emergencyContactRelation || null;
+
       // 4. Create Employee Profile
       const emp = await tx.employee.create({
         data: {
@@ -254,15 +310,15 @@ export class EmployeesService {
           joiningDate: new Date(dto.joiningDate),
           dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
           employmentStatus: dto.employmentStatus || 'FULL_TIME',
-          departmentId: dto.departmentId || null,
+          departmentId,
           designationId,
           officeLocationId: dto.officeLocationId || null,
           shiftId: dto.shiftId || null,
-          reportingManagerId: dto.reportingManagerId || null,
+          reportingManagerId,
           currentAddress: dto.currentAddress,
           emergencyContactName: dto.emergencyContactName,
           emergencyContactPhone: dto.emergencyContactPhone,
-          emergencyContactRelation: dto.emergencyContactRelation,
+          emergencyContactRelation: deviceIdVal ? String(deviceIdVal) : null,
           bankName: dto.bankName,
           bankAccountNumber: dto.bankAccountNumber,
           bankIfscCode: dto.bankIfscCode,
@@ -392,6 +448,54 @@ export class EmployeesService {
     }
     delete dataToUpdate.designationTitle;
 
+    // Resolve department if departmentTitle is provided
+    if (!dataToUpdate.departmentId && (dto as any).departmentTitle?.trim()) {
+      const title = (dto as any).departmentTitle.trim();
+      const code = title.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 20);
+      const existingDept = await this.prisma.department.findFirst({
+        where: { companyId: employee.companyId, name: title },
+      });
+      if (existingDept) {
+        dataToUpdate.departmentId = existingDept.id;
+      } else {
+        const createdDept = await this.prisma.department.create({
+          data: {
+            companyId: employee.companyId,
+            name: title,
+            code: `${code}_${Math.floor(1000 + Math.random() * 9000)}`,
+          },
+        });
+        dataToUpdate.departmentId = createdDept.id;
+      }
+    }
+    delete (dataToUpdate as any).departmentTitle;
+
+    // Resolve reporting manager if reportingManager string is provided
+    const mgrRef = (dto as any).reportingManager?.trim();
+    if (!dataToUpdate.reportingManagerId && mgrRef) {
+      const mgr = await this.prisma.employee.findFirst({
+        where: {
+          companyId: employee.companyId,
+          OR: [
+            { employeeCode: mgrRef },
+            { email: mgrRef },
+            { firstName: { contains: mgrRef } },
+            { lastName: { contains: mgrRef } },
+          ],
+        },
+      });
+      if (mgr) {
+        dataToUpdate.reportingManagerId = mgr.id;
+      }
+    }
+    delete (dataToUpdate as any).reportingManager;
+
+    const deviceId = (dto as any).deviceUserId;
+    if (deviceId !== undefined) {
+      dataToUpdate.emergencyContactRelation = String(deviceId);
+    }
+    delete (dataToUpdate as any).deviceUserId;
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const emp = await tx.employee.update({
         where: { id },
@@ -401,6 +505,15 @@ export class EmployeesService {
           designation: true,
           officeLocation: true,
           shift: true,
+          reportingManager: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeCode: true,
+              email: true,
+            },
+          },
         },
       });
 
@@ -509,14 +622,33 @@ export class EmployeesService {
     const results = {
       total: employees.length,
       successCount: 0,
+      updatedCount: 0,
       failedCount: 0,
       errors: [] as { employeeCode: string; error: string }[],
     };
 
+    const targetCompanyId = user.activeCompanyId || user.companyId || (await this.prisma.company.findFirst())?.id;
+
     for (const empDto of employees) {
       try {
-        await this.create(empDto, user);
-        results.successCount++;
+        // Check if employee with employeeCode or email already exists
+        const existingEmp = await this.prisma.employee.findFirst({
+          where: {
+            OR: [
+              { employeeCode: empDto.employeeCode },
+              { email: empDto.email },
+            ],
+          },
+        });
+
+        if (existingEmp) {
+          await this.updateFromBulk(existingEmp.id, empDto, targetCompanyId);
+          results.updatedCount++;
+          results.successCount++;
+        } else {
+          await this.create(empDto, user);
+          results.successCount++;
+        }
       } catch (err: any) {
         results.failedCount++;
         results.errors.push({
@@ -527,6 +659,85 @@ export class EmployeesService {
     }
 
     return results;
+  }
+
+  async updateFromBulk(id: string, dto: CreateEmployeeDto, targetCompanyId?: string) {
+    let designationId = dto.designationId || undefined;
+    const desigTitle = dto.designationTitle?.trim() || (dto as any).designation?.trim();
+    if (!designationId && desigTitle && targetCompanyId) {
+      const existingDesig = await this.prisma.designation.findFirst({
+        where: { companyId: targetCompanyId, title: desigTitle },
+      });
+      if (existingDesig) {
+        designationId = existingDesig.id;
+      } else {
+        const code = desigTitle.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 40);
+        const created = await this.prisma.designation.create({
+          data: {
+            companyId: targetCompanyId,
+            title: desigTitle,
+            code: `${code}_${Math.floor(1000 + Math.random() * 9000)}`,
+          },
+        });
+        designationId = created.id;
+      }
+    }
+
+    let departmentId = dto.departmentId || undefined;
+    const deptTitle = dto.departmentTitle?.trim() || (dto as any).department?.trim() || (dto as any).departmentName?.trim();
+    if (!departmentId && deptTitle && targetCompanyId) {
+      const existingDept = await this.prisma.department.findFirst({
+        where: { companyId: targetCompanyId, name: deptTitle },
+      });
+      if (existingDept) {
+        departmentId = existingDept.id;
+      } else {
+        const code = deptTitle.toUpperCase().replace(/[^A-Z0-9]/g, '_').substring(0, 20);
+        const created = await this.prisma.department.create({
+          data: {
+            companyId: targetCompanyId,
+            name: deptTitle,
+            code: `${code}_${Math.floor(1000 + Math.random() * 9000)}`,
+          },
+        });
+        departmentId = created.id;
+      }
+    }
+
+    let reportingManagerId = dto.reportingManagerId || undefined;
+    const mgrRef = dto.reportingManager?.trim() || (dto as any).reporting_manager?.trim();
+    if (!reportingManagerId && mgrRef && targetCompanyId) {
+      const mgr = await this.prisma.employee.findFirst({
+        where: {
+          companyId: targetCompanyId,
+          OR: [
+            { employeeCode: mgrRef },
+            { email: mgrRef },
+            { firstName: { contains: mgrRef } },
+            { lastName: { contains: mgrRef } },
+          ],
+        },
+      });
+      if (mgr) {
+        reportingManagerId = mgr.id;
+      }
+    }
+
+    const deviceId = dto.deviceUserId || (dto as any).device_user_id;
+
+    return this.prisma.employee.update({
+      where: { id },
+      data: {
+        firstName: dto.firstName || undefined,
+        lastName: dto.lastName || undefined,
+        phone: dto.phone || undefined,
+        designationId,
+        departmentId,
+        reportingManagerId,
+        emergencyContactRelation: deviceId ? String(deviceId) : undefined,
+        workLocationType: dto.workLocationType || undefined,
+      },
+    });
   }
 
   async deactivate(id: string, user: AuthenticatedUser) {

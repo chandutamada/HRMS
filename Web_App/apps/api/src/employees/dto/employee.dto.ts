@@ -77,6 +77,11 @@ export class CreateEmployeeDto {
   @IsString()
   departmentId?: string;
 
+  @ApiProperty({ required: false, description: 'Department Name / Title (auto-creates if id omitted)' })
+  @IsOptional()
+  @IsString()
+  departmentTitle?: string;
+
   @ApiProperty({ required: false, description: 'Designation ID' })
   @IsOptional()
   @IsString()
@@ -91,6 +96,11 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsString()
   deviceUserId?: string;
+
+  @ApiProperty({ required: false, description: 'Reporting Manager Code, Name or ID' })
+  @IsOptional()
+  @IsString()
+  reportingManager?: string;
 
   @ApiProperty({ required: false, description: 'Office Location ID' })
   @IsOptional()

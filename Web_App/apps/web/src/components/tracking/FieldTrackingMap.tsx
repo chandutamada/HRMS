@@ -105,12 +105,14 @@ export default function FieldTrackingMap({
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
+  const stopMarkersRef = useRef<L.Marker[]>([]);
   const rawWaypointsRef = useRef<Array<[number, number]>>([initialPosition]);
   const socketRef = useRef<Socket | null>(null);
 
   const [isConnected, setIsConnected] = useState(false);
   const [isRoadSnapped, setIsRoadSnapped] = useState(true);
   const [isSnappingInProgress, setIsSnappingInProgress] = useState(false);
+  const [stops, setStops] = useState<any[]>([]);
 
   const [telemetry, setTelemetry] = useState<FieldTelemetryPacket>({
     employeeId: initialEmployeeId || 'field-emp-1',
@@ -162,6 +164,82 @@ export default function FieldTrackingMap({
       iconAnchor: [22, 22],
     });
   }, []);
+
+  // Fetch Existing History & Waypoints on Load so the map shows the full road journey immediately
+  useEffect(() => {
+    async function loadDayRoute() {
+      if (!initialEmployeeId) return;
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const res = await fetch(`/api/tracking/history?employeeCode=${encodeURIComponent(initialEmployeeId)}&date=${todayStr}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.waypoints && data.waypoints.length > 0) {
+            const pts: Array<[number, number]> = data.waypoints.map((w: any) => [w.lat, w.lng]);
+            rawWaypointsRef.current = pts;
+            const last = pts[pts.length - 1];
+
+            if (markerRef.current) markerRef.current.setLatLng(last);
+            if (mapRef.current) mapRef.current.panTo(last);
+
+            setIsSnappingInProgress(true);
+            try {
+              const snapped = await fetchRoadGeometry(pts);
+              if (polylineRef.current) {
+                polylineRef.current.setLatLngs(snapped);
+                setIsRoadSnapped(snapped.length > pts.length);
+              }
+              if (mapRef.current && polylineRef.current && pts.length > 1) {
+                mapRef.current.fitBounds(polylineRef.current.getBounds(), { padding: [50, 50] });
+              }
+            } catch {
+              if (polylineRef.current) polylineRef.current.setLatLngs(pts);
+            } finally {
+              setIsSnappingInProgress(false);
+            }
+          }
+
+          // Render interactive numbered stop markers (1, 2, 3...)
+          if (data.stops && data.stops.length > 0 && mapRef.current) {
+            stopMarkersRef.current.forEach((m) => m.remove());
+            stopMarkersRef.current = [];
+            setStops(data.stops);
+
+            data.stops.forEach((stop: any) => {
+              const stopIcon = L.divIcon({
+                className: 'stop-marker-num',
+                html: `
+                  <div style="background:#ef4444;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;border:2px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,0.4);cursor:pointer;">
+                    ${stop.index}
+                  </div>
+                `,
+                iconSize: [26, 26],
+                iconAnchor: [13, 13],
+              });
+
+              const sm = L.marker([stop.lat, stop.lng], { icon: stopIcon })
+                .bindPopup(`
+                  <div style="font-family:system-ui,-apple-system,sans-serif;font-size:12px;padding:3px;">
+                    <div style="font-weight:bold;color:#b91c1c;margin-bottom:2px;">📍 Stop #${stop.index} (${stop.durationFormatted || 'Halt'})</div>
+                    <div style="color:#334155;margin-bottom:4px;">${stop.address}</div>
+                    <div style="font-size:10px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:3px;">
+                      Arrival: <b>${stop.arrivalIst}</b> • Departure: <b>${stop.departureIst}</b>
+                    </div>
+                  </div>
+                `)
+                .addTo(mapRef.current!);
+
+              stopMarkersRef.current.push(sm);
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[FieldTrackingMap] Failed to load day route history:', err);
+      }
+    }
+
+    loadDayRoute();
+  }, [initialEmployeeId]);
 
   // Initialize Leaflet Map
   useEffect(() => {
@@ -241,53 +319,60 @@ export default function FieldTrackingMap({
 
       if (!map || !marker || !polyline) return;
 
-      // 1. Smoothly pan the map to new position
+      // 1. Smoothly pan the map and update marker position
       map.panTo(newCoord, { animate: true, duration: 1.0 });
-
-      // 2. Update marker position and icon (speed-adaptive)
       marker.setLatLng(newCoord);
       marker.setIcon(createPulsingMarkerIcon(packet.speed ?? 0));
 
-      // 3. Append to raw waypoints list
+      // 2. Stationary vs Moving Drift Gatekeeper:
+      // When stationary (speed < 0.5 m/s or km/h), do NOT append wander coordinates to Leaflet polyline!
+      const currentSpeed = Number(packet.speed ?? 0);
+      const isMoving = currentSpeed >= 0.5;
+
       const prevPoints = rawWaypointsRef.current;
       const lastPoint = prevPoints[prevPoints.length - 1];
 
-      // Only append if movement is at least ~5 meters to prevent duplicate clutter
-      const dist = lastPoint
+      // Calculate real distance to last point
+      const distMeters = lastPoint
         ? map.distance(L.latLng(lastPoint[0], lastPoint[1]), L.latLng(newLat, newLng))
         : 999;
 
-      if (dist >= 5) {
+      // Only append new polyline vertices when worker is moving and has displaced >= 25 meters
+      if (isMoving && distMeters >= 25) {
         rawWaypointsRef.current = [...prevPoints, newCoord];
-      }
 
-      // 4. Road-Snapping Engine (OSRM Routing Pipeline)
-      if (rawWaypointsRef.current.length >= 2) {
-        setIsSnappingInProgress(true);
-        try {
-          const snappedCoords = await fetchRoadGeometry(rawWaypointsRef.current);
-          polyline.setLatLngs(snappedCoords);
-          setIsRoadSnapped(snappedCoords.length > rawWaypointsRef.current.length);
-        } catch {
-          // Graceful fallback to raw points
-          polyline.setLatLngs(rawWaypointsRef.current);
-          setIsRoadSnapped(false);
-        } finally {
-          setIsSnappingInProgress(false);
+        // 3. Road-Snapping Engine (OSRM Routing Pipeline)
+        if (rawWaypointsRef.current.length >= 2) {
+          setIsSnappingInProgress(true);
+          try {
+            const snappedCoords = await fetchRoadGeometry(rawWaypointsRef.current);
+            polyline.setLatLngs(snappedCoords);
+            setIsRoadSnapped(snappedCoords.length > rawWaypointsRef.current.length);
+          } catch {
+            // Graceful fallback to raw points
+            polyline.setLatLngs(rawWaypointsRef.current);
+            setIsRoadSnapped(false);
+          } finally {
+            setIsSnappingInProgress(false);
+          }
         }
       }
     },
     [createPulsingMarkerIcon]
   );
 
-  // Socket.io Real-Time Listener
+  // Socket.io Real-Time Listener with Authentication & Infinite Reconnection
   useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('hrms_token') : null;
+
     const socket = io(`${apiBase}/tracking`, {
       transports: ['websocket', 'polling'],
+      auth: { token },
+      query: { token },
       reconnection: true,
-      reconnectionAttempts: 15,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: 99,
+      reconnectionDelay: 1000,
     });
 
     socketRef.current = socket;
@@ -353,14 +438,14 @@ export default function FieldTrackingMap({
                 {telemetry.employeeName || initialEmployeeName}
               </span>
               <span
-                className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                  (telemetry.speed || 0) > 1.5
+                className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                  (telemetry.speed || 0) >= 0.5
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     : 'bg-blue-50 text-blue-700 border border-blue-200'
                 }`}
               >
-                <span className={`h-1.5 w-1.5 rounded-full ${(telemetry.speed || 0) > 1.5 ? 'bg-emerald-500' : 'bg-blue-500'}`} />
-                {(telemetry.speed || 0) > 1.5 ? 'IN TRANSIT' : 'ACTIVE FIELD'}
+                <span className={`h-1.5 w-1.5 rounded-full ${(telemetry.speed || 0) >= 0.5 ? 'bg-emerald-500 animate-ping' : 'bg-blue-500'}`} />
+                {(telemetry.speed || 0) >= 0.5 ? 'IN TRANSIT' : '● STATIONARY AT SITE (Live)'}
               </span>
             </div>
 
@@ -376,6 +461,14 @@ export default function FieldTrackingMap({
                 {renderBatteryIcon(telemetry.battery)}
                 <span>{telemetry.battery ?? 100}%</span>
               </div>
+
+              {/* Stops Count */}
+              {stops.length > 0 && (
+                <div className="flex items-center gap-1 text-[11px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                  <MapPin className="h-3 w-3 text-rose-500" />
+                  <span>{stops.length} Stops</span>
+                </div>
+              )}
 
               {/* GPS Coordinates */}
               <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-400 font-mono">

@@ -55,7 +55,9 @@ export default function EmployeesPage() {
   const [fCode, setFCode] = useState('');
   const [fDevId, setFDevId] = useState('');
   const [fAttType, setFAttType] = useState('both');
+  const [fDept, setFDept] = useState('');
   const [fDesig, setFDesig] = useState('');
+  const [fManager, setFManager] = useState('');
   const [fEmail, setFEmail] = useState('');
   const [fPhone, setFPhone] = useState('');
   const [fJoining, setFJoining] = useState(new Date().toISOString().split('T')[0]);
@@ -302,9 +304,11 @@ export default function EmployeesPage() {
         employeeCode: fCode.trim(),
         firstName,
         lastName,
-        email: fEmail.trim() || `${fCode.toLowerCase()}@gramtarang.org`,
+        email: fEmail.trim() || `${fCode.toLowerCase()}@cutmap.ac.in`,
         phone: fPhone.trim() || undefined,
+        departmentTitle: fDept.trim() || undefined,
         designationTitle: fDesig.trim() || undefined,
+        reportingManager: fManager.trim() || undefined,
         deviceUserId: fDevId.trim() || undefined,
         joiningDate: fJoining,
         workLocationType: fAttType === 'gps' ? 'OFF_SITE' : 'ON_SITE',
@@ -316,7 +320,7 @@ export default function EmployeesPage() {
       setCredentialsAlert({
         name: fName.trim(),
         code: fCode.trim(),
-        email: fEmail.trim() || `${fCode.toLowerCase()}@gramtarang.org`,
+        email: fEmail.trim() || `${fCode.toLowerCase()}@cutmap.ac.in`,
         password: assignedPassword,
       });
 
@@ -325,7 +329,9 @@ export default function EmployeesPage() {
       setFDevId('');
       setFEmail('');
       setFPhone('');
+      setFDept('');
       setFDesig('');
+      setFManager('');
       setFPassword('');
       setAddError('');
       fetchEmployees();
@@ -340,8 +346,10 @@ export default function EmployeesPage() {
     setEditError('');
     setEditName(`${emp.firstName || ''} ${emp.lastName || ''}`.trim());
     setEditCode(emp.employeeCode || '');
-    setEditDevId(emp.employeeCode || '');
+    setEditDevId(emp.deviceUserId || emp.emergencyContactRelation || emp.employeeCode || '');
     setEditDesig(emp.designation?.title || '');
+    setEditDeptId(emp.department?.name || '');
+    setEditManagerId(emp.reportingManager?.employeeCode || emp.reportingManager?.firstName || '');
     setEditAttType(emp.workLocationType === 'OFF_SITE' || emp.workLocationType === 'REMOTE' ? 'gps' : 'biometric');
     setEditWorkMode(emp.workLocationType === 'OFF_SITE' || emp.workLocationType === 'REMOTE' ? 'wfh' : 'office');
     setEditJoining(emp.joiningDate ? emp.joiningDate.split('T')[0] : '');
@@ -361,15 +369,18 @@ export default function EmployeesPage() {
       const firstName = parts[0] || editName.trim() || 'Employee';
       const lastName = parts.length > 1 ? parts.slice(1).join(' ') : (editingEmp.lastName && editingEmp.lastName !== '-' ? editingEmp.lastName : '-');
 
-      const finalCode = (editCode || editDevId || editingEmp.employeeCode || '').trim();
+      const finalCode = (editCode || editingEmp.employeeCode || '').trim();
 
       const payload: any = {
         firstName,
         lastName,
         employeeCode: finalCode,
+        deviceUserId: editDevId.trim() || undefined,
         phone: editingEmp.phone || undefined,
         shiftId: editShiftId || null,
+        departmentTitle: editDeptId.trim() || undefined,
         designationTitle: editDesig.trim() || undefined,
+        reportingManager: editManagerId.trim() || undefined,
         workLocationType: editAttType === 'gps' ? 'OFF_SITE' : 'ON_SITE',
         employmentType: editAttType === 'gps' ? 'FIELD' : 'OFFICE',
       };
@@ -429,22 +440,89 @@ export default function EmployeesPage() {
         const json: any[] = XLSX.utils.sheet_to_json(ws);
 
         const formatted = json.map((r: any) => {
-          const name = String(r.name || r['Full Name'] || '').trim();
-          const parts = name.split(' ');
+          const rawName = String(r.name || r['Full Name'] || r['Employee Name'] || r['Name'] || '').trim();
+          const parts = rawName.split(/\s+/).filter(Boolean);
+          const firstName = parts[0] || 'Employee';
+          const lastName = parts.slice(1).join(' ') || '.';
+
+          const rawCode = String(
+            r.employee_code ||
+            r['Employee Code'] ||
+            r['Emp Code'] ||
+            r['Code'] ||
+            r.code ||
+            ''
+          ).trim();
+
+          const rawDeviceId = String(
+            r.device_user_id !== undefined ? r.device_user_id :
+            r['Device User ID'] !== undefined ? r['Device User ID'] :
+            r['Device ID'] !== undefined ? r['Device ID'] :
+            r['device_id'] !== undefined ? r['device_id'] :
+            r['Biometric ID'] !== undefined ? r['Biometric ID'] :
+            ''
+          ).trim();
+
+          const rawDept = String(
+            r.department ||
+            r['Department'] ||
+            r['department_name'] ||
+            r['Dept'] ||
+            ''
+          ).trim();
+
+          const rawDesig = String(
+            r.designation ||
+            r['Designation'] ||
+            r['designation_title'] ||
+            r['Job Title'] ||
+            ''
+          ).trim();
+
+          const rawManager = String(
+            r.reporting_manager ||
+            r['Reporting Manager'] ||
+            r['reporting_manager_code'] ||
+            r['Manager'] ||
+            ''
+          ).trim();
+
+          const rawAttType = String(
+            r.attendance_type ||
+            r['Attendance Type'] ||
+            r['attendance_mode'] ||
+            ''
+          ).toLowerCase().trim();
+
+          const isField = rawAttType.includes('gps') || rawAttType.includes('field') || rawAttType.includes('off_site') || rawAttType.includes('remote');
+
+          const rawEmail = String(r.email || r['Email'] || '').trim();
+          const email = rawEmail || (rawCode ? `${rawCode.toLowerCase()}@cutmap.ac.in` : `emp${Math.floor(Math.random() * 89999 + 10000)}@cutmap.ac.in`);
+
+          const rawPhone = r.phone !== undefined ? String(r.phone).trim() : (r['Phone'] !== undefined ? String(r['Phone']).trim() : undefined);
+
           return {
-            employeeCode: String(r.employee_code || r['Employee Code'] || r['Code'] || '').trim(),
-            firstName: parts[0] || 'Employee',
-            lastName: parts.slice(1).join(' ') || ' ',
-            email: String(r.email || r['Email'] || '').trim() || `${String(r.employee_code || '').toLowerCase()}@gramtarang.org`,
-            phone: r.phone ? String(r.phone).trim() : undefined,
-            joiningDate: r.joining_date || new Date().toISOString().split('T')[0],
+            companyId: activeCompany?.id,
+            employeeCode: rawCode,
+            firstName,
+            lastName,
+            email,
+            phone: rawPhone || undefined,
+            deviceUserId: rawDeviceId || undefined,
+            departmentTitle: rawDept || undefined,
+            designationTitle: rawDesig || undefined,
+            reportingManager: rawManager || undefined,
+            attendanceType: rawAttType || 'biometric',
+            workLocationType: isField ? 'OFF_SITE' : 'ON_SITE',
+            employmentType: isField ? 'FIELD' : 'OFFICE',
+            joiningDate: r.joining_date || r['Joining Date'] || r.join_date || new Date().toISOString().split('T')[0],
           };
         });
 
         const res: any = await api.post('/employees/bulk', { employees: formatted });
         setUploadStatus({
           success: true,
-          message: `Successfully uploaded ${res.successCount} of ${res.total} employees!`,
+          message: `Successfully processed ${res.successCount || formatted.length} employees (${res.updatedCount || 0} updated, ${res.total || formatted.length} total)!`,
         });
         fetchEmployees();
       } catch (err: any) {
@@ -686,21 +764,23 @@ export default function EmployeesPage() {
                       <td className="p-3 text-slate-500 font-mono">{emp.employeeCode}</td>
                       <td className="p-3">
                         <code className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono text-[11px]">
-                          {emp.employeeCode}
+                          {emp.deviceUserId || emp.emergencyContactRelation || emp.employeeCode}
                         </code>
                       </td>
-                      <td className="p-3 text-slate-600">{emp.department?.name || '—'}</td>
-                      <td className="p-3 text-slate-600">{emp.designation?.title || '—'}</td>
+                      <td className="p-3 text-slate-600">{emp.department?.name || emp.department?.title || (emp as any).departmentName || '—'}</td>
+                      <td className="p-3 text-slate-600">{emp.designation?.title || emp.designation?.name || (emp as any).designationTitle || '—'}</td>
                       <td className="p-3">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${attBadgeClass}`}>
                           {attBadgeLabel === 'Biometric' && <Fingerprint className="h-3 w-3" />}
-                          {attBadgeLabel === 'GPS' && <MapPin className="h-3 w-3" />}
-                          {attBadgeLabel === 'Both' && <Layers className="h-3 w-3" />}
+                          {attBadgeLabel === 'GPS / Field' && <MapPin className="h-3 w-3" />}
+                          {attBadgeLabel !== 'Biometric' && attBadgeLabel !== 'GPS / Field' && <Layers className="h-3 w-3" />}
                           {attBadgeLabel}
                         </span>
                       </td>
                       <td className="p-3 text-slate-500 text-[11px]">
-                        {emp.reportingManager ? `${emp.reportingManager.firstName} ${emp.reportingManager.lastName}` : '—'}
+                        {emp.reportingManager
+                          ? `${emp.reportingManager.firstName || ''} ${emp.reportingManager.lastName || ''}`.trim() || emp.reportingManager.employeeCode
+                          : '—'}
                       </td>
                       <td className="p-3">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -820,12 +900,35 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block font-medium text-slate-700 mb-1">Department</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Admissions / Operations"
+                    value={fDept}
+                    onChange={(e) => setFDept(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200"
+                  />
+                </div>
+                <div>
                   <label className="block font-medium text-slate-700 mb-1">Designation</label>
                   <input
                     type="text"
-                    placeholder="Flight Operator"
+                    placeholder="e.g. Admission Officer"
                     value={fDesig}
                     onChange={(e) => setFDesig(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-200"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Reporting Manager</label>
+                  <input
+                    type="text"
+                    placeholder="Manager Code or Name"
+                    value={fManager}
+                    onChange={(e) => setFManager(e.target.value)}
                     className="w-full p-2.5 rounded-xl border border-slate-200"
                   />
                 </div>
@@ -833,7 +936,7 @@ export default function EmployeesPage() {
                   <label className="block font-medium text-slate-700 mb-1">Email</label>
                   <input
                     type="email"
-                    placeholder="ravi@gramtarang.org"
+                    placeholder="ravi@cutmap.ac.in"
                     value={fEmail}
                     onChange={(e) => setFEmail(e.target.value)}
                     className="w-full p-2.5 rounded-xl border border-slate-200"
@@ -995,6 +1098,40 @@ export default function EmployeesPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Department</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Admissions / Operations"
+                    value={editDeptId}
+                    onChange={(e) => setEditDeptId(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-slate-200"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Designation</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Admission Officer"
+                    value={editDesig}
+                    onChange={(e) => setEditDesig(e.target.value)}
+                    className="w-full p-2 rounded-xl border border-slate-200"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Reporting Manager</label>
+                <input
+                  type="text"
+                  placeholder="Manager Employee Code or Name"
+                  value={editManagerId}
+                  onChange={(e) => setEditManagerId(e.target.value)}
+                  className="w-full p-2 rounded-xl border border-slate-200"
+                />
               </div>
 
               {/* Facial Enrolment Card */}
@@ -1162,17 +1299,90 @@ export default function EmployeesPage() {
             <button
               type="button"
               onClick={() => {
-                const sample = [
-                  { name: 'Ravi Kumar', employee_code: 'EMP001', device_user_id: '1001', attendance_type: 'both', designation: 'Engineer', email: 'ravi@gramtarang.org', phone: '9876543210' },
+                const sampleRows = [
+                  {
+                    name: 'Radha Krishna D',
+                    employee_code: 'EMPVIZ0428',
+                    device_user_id: '10002',
+                    department: 'Admissions',
+                    designation: 'Admission Officer',
+                    attendance_type: 'Regular',
+                    reporting_manager: 'EMPVIZ0001',
+                    email: 'radhakrishna@cutmap.ac.in',
+                    phone: '7032766628',
+                    joining_date: '2024-01-15',
+                  },
+                  {
+                    name: 'SURAPU KUMARASWAMY',
+                    employee_code: 'EMPVIZ0001',
+                    device_user_id: '10001',
+                    department: 'Admissions',
+                    designation: 'ADMISSION OFFICER',
+                    attendance_type: 'Regular',
+                    reporting_manager: '',
+                    email: 'skumar532429@gmail.com',
+                    phone: '9494828720',
+                    joining_date: '2023-08-01',
+                  },
+                  {
+                    name: 'Sneha Patel',
+                    employee_code: 'EMP002',
+                    device_user_id: '10004',
+                    department: 'Field Operations',
+                    designation: 'Drone Pilot Specialist',
+                    attendance_type: 'GPS',
+                    reporting_manager: 'EMPVIZ0001',
+                    email: 'sneha.patel@gramtarang.org',
+                    phone: '9812345678',
+                    joining_date: '2024-03-01',
+                  },
                 ];
-                const ws = XLSX.utils.json_to_sheet(sample);
+
+                const guideRows = [
+                  { 'Field Name': 'name', 'Required': 'YES', 'Valid Values': 'Full Name (e.g. Radha Krishna D)', 'Notes': 'Employee full name' },
+                  { 'Field Name': 'employee_code', 'Required': 'YES', 'Valid Values': 'Unique alphanumeric code', 'Notes': 'E.g. EMPVIZ0428' },
+                  { 'Field Name': 'device_user_id', 'Required': 'OPTIONAL', 'Valid Values': 'Numeric ID on Biometric machine', 'Notes': 'E.g. 10002' },
+                  { 'Field Name': 'department', 'Required': 'OPTIONAL', 'Valid Values': 'Department Name', 'Notes': 'E.g. Admissions, Operations' },
+                  { 'Field Name': 'designation', 'Required': 'OPTIONAL', 'Valid Values': 'Job Title', 'Notes': 'E.g. Admission Officer' },
+                  { 'Field Name': 'attendance_type', 'Required': 'YES', 'Valid Values': 'Regular | Biometric | GPS | Both', 'Notes': 'Punch capture mode' },
+                  { 'Field Name': 'reporting_manager', 'Required': 'OPTIONAL', 'Valid Values': 'Manager Employee Code or Name', 'Notes': 'E.g. EMPVIZ0001' },
+                  { 'Field Name': 'email', 'Required': 'YES', 'Valid Values': 'Valid email address', 'Notes': 'Used for portal login' },
+                  { 'Field Name': 'phone', 'Required': 'OPTIONAL', 'Valid Values': '10-digit mobile number', 'Notes': 'Mobile contact' },
+                  { 'Field Name': 'joining_date', 'Required': 'OPTIONAL', 'Valid Values': 'YYYY-MM-DD', 'Notes': 'Date of joining company' },
+                ];
+
                 const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Employees');
-                XLSX.writeFile(wb, 'employees_template.xlsx');
+                const wsSample = XLSX.utils.json_to_sheet(sampleRows);
+                const wsGuide = XLSX.utils.json_to_sheet(guideRows);
+
+                wsSample['!cols'] = [
+                  { wch: 22 },
+                  { wch: 16 },
+                  { wch: 16 },
+                  { wch: 20 },
+                  { wch: 24 },
+                  { wch: 18 },
+                  { wch: 20 },
+                  { wch: 28 },
+                  { wch: 16 },
+                  { wch: 14 },
+                ];
+
+                wsGuide['!cols'] = [
+                  { wch: 20 },
+                  { wch: 14 },
+                  { wch: 35 },
+                  { wch: 40 },
+                ];
+
+                XLSX.utils.book_append_sheet(wb, wsSample, 'Employees');
+                XLSX.utils.book_append_sheet(wb, wsGuide, 'Field_Instructions');
+                XLSX.writeFile(wb, 'hrms_employee_bulk_upload_template.xlsx');
               }}
-              className="w-full py-2 mb-3 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition"
+              className="w-full py-2.5 mb-3 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-xl hover:bg-emerald-100 transition flex items-center justify-center gap-2 shadow-2xs"
             >
-              📥 Download Sample Template (.xlsx)
+              <span>📥</span>
+              <span>Download Professional Sample Template (.xlsx)</span>
             </button>
 
             <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-emerald-500 transition cursor-pointer bg-slate-50">
@@ -1225,6 +1435,26 @@ export default function EmployeesPage() {
             <p className="text-xs text-slate-500 mb-3">
               Upload an Excel where <strong>column 1 = biometric/device ID</strong> and <strong>column 2 = name</strong>. Matches will be automatically paired to employee profiles.
             </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                const sample = [
+                  { 'Device User ID': 1001, 'Employee Name': 'Ravi Kumar', 'Remarks': 'Punch Fingerprint Registered' },
+                  { 'Device User ID': 1002, 'Employee Name': 'Sneha Patel', 'Remarks': 'Face Recognition Enrolled' },
+                  { 'Device User ID': 1003, 'Employee Name': 'Anand Varma', 'Remarks': 'RFID Card + Biometric' },
+                ];
+                const ws = XLSX.utils.json_to_sheet(sample);
+                ws['!cols'] = [{ wch: 18 }, { wch: 24 }, { wch: 32 }];
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Biometric_Mappings');
+                XLSX.writeFile(wb, 'biometric_device_id_template.xlsx');
+              }}
+              className="w-full py-2 mb-3 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition flex items-center justify-center gap-1.5"
+            >
+              <span>📥</span>
+              <span>Download Biometric Mapping Template (.xlsx)</span>
+            </button>
 
             <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 mb-4">
               <input type="file" accept=".xlsx,.xls,.csv" className="text-xs" />

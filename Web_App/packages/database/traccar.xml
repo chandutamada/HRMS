@@ -10,10 +10,20 @@
     <!-- OsmAnd Ingestion Protocol Port -->
     <entry key='osmand.port'>5055</entry>
 
-    <!-- Trip & Stationary Stop Calculation Rules -->
-    <entry key='report.trip.minimalTripDistance'>50</entry>
-    <entry key='report.trip.minimalTripDuration'>60</entry>
+    <!-- GPS Jitter & Multipath Drift Purge -->
+    <entry key='filter.enable'>true</entry>
+    <entry key='filter.invalid'>true</entry>
+    <entry key='filter.zero'>true</entry>
+    <entry key='filter.maxSpeed'>120</entry>
+    <entry key='filter.minAccuracy'>25</entry>
+    <entry key='filter.skipLimit'>300</entry>
+    <entry key='filter.distance'>15</entry>
+
+    <!-- Trip & Stationary Stop Calculation Rules for Field Staff -->
+    <entry key='report.trip.minimalTripDistance'>100</entry>
+    <entry key='report.trip.minimalTripDuration'>180</entry>
     <entry key='report.trip.minimalParkingDuration'>180</entry> <!-- 3 mins stationary = Stop -->
+    <entry key='report.trip.minimalNoDataDuration'>300</entry>
 
     <!-- Forward Positions to NestJS Backend Webhook -->
     <entry key='event.forward.enable'>true</entry>

@@ -247,6 +247,57 @@ export default function GoogleMapsTimelineView({
           data = await res.json();
         }
 
+        // Secondary fallback to Traccar / Attendance history proxy if no session points exist
+        if ((!data?.stops || data.stops.length === 0) && (!data?.routePolyline || data.routePolyline.length === 0)) {
+          try {
+            const histRes = await fetch(`/api/tracking/history?employeeCode=${encodeURIComponent(empId)}&date=${date}`);
+            if (histRes.ok) {
+              const hist = await histRes.json();
+              if (hist.waypoints && hist.waypoints.length > 0) {
+                const waypoints = hist.waypoints.map((w: any) => [w.lat, w.lng] as [number, number]);
+                const histStops = (hist.stops || []).map((s: any) => ({
+                  index: s.index,
+                  id: `stop-${s.index}`,
+                  name: s.address || `Stop #${s.index}`,
+                  tag: 'MISSION STOP',
+                  timestamp: new Date().toISOString(),
+                  timeRange: `${s.arrivalIst} - ${s.departureIst}`,
+                  durationText: s.durationFormatted || 'Stationary',
+                  address: s.address,
+                  latitude: s.lat,
+                  longitude: s.lng,
+                  isOffice: false,
+                }));
+
+                const histTransits = [];
+                for (let i = 0; i < histStops.length - 1; i++) {
+                  histTransits.push({
+                    fromStopIndex: histStops[i].index,
+                    toStopIndex: histStops[i + 1].index,
+                    mode: 'DRIVING' as const,
+                    distanceKm: Number(((hist.tripSummary?.totalDistanceKm || 5) / Math.max(1, histStops.length - 1)).toFixed(1)),
+                    durationText: '15 mins',
+                  });
+                }
+
+                data = {
+                  ...data,
+                  routePolyline: waypoints,
+                  stops: histStops,
+                  transits: histTransits,
+                  tripSummary: {
+                    ...data.tripSummary,
+                    totalPlaces: histStops.length > 0 ? histStops.length : 1,
+                    totalDistanceKm: hist.tripSummary?.totalDistanceKm || data.tripSummary.totalDistanceKm,
+                    totalDurationText: hist.tripSummary?.totalDurationText || data.tripSummary.totalDurationText,
+                    hasTravelData: true,
+                  },
+                };
+              }
+            }
+          } catch (_) {}
+        }
+
         setTimelineData(data);
 
         // Reverse-geocode all timeline stops to display real street/locality address
