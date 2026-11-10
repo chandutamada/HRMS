@@ -111,13 +111,17 @@ sequenceDiagram
 
 ### 1. 📱 Android Mobile Application (`Android_App/`)
 - **Biometric Security**: Hardware fingerprint and facial recognition login using `local_auth` and encrypted JWT key storage (`flutter_secure_storage`).
-- **Geofenced Punch In/Out**: Real-time GPS verification against corporate office geofences using the Haversine spherical distance formula.
-- **Field Telemetry & Route Logging**: Background GPS waypoint recording with battery monitoring and automatic retry mechanisms.
-- **Employee Self-Service**:
-  - Apply for Casual, Sick, or Earned leaves with real-time balance tracking.
-  - Submit attendance regularizations with custom justifications.
+- **Geofenced Punch In/Out & Anti-Spoofing**: Real-time GPS verification against corporate office geofences with strict Haversine radius validation and hardware anti-spoofing detection rejecting mock location providers.
+- **Field Telemetry & Route Logging**: Background GPS waypoint recording with motion-adaptive frequency, Kalman filtering, battery monitoring, and automatic offline retries.
+- **100% Dynamic Employee Self-Service (Zero Mock Data)**:
+  - Dynamic attendance history, daily logs, and punch timestamps queried directly from `/attendance/history`.
+  - Apply for Casual, Sick, or Earned leaves with live balance tracking via `/leave/balances/my` and `/leave/applications/my`.
+  - Submit attendance regularizations with custom justifications and real-time review status.
+  - Team Management & Approval Hub: Live manager review for team calendars, pending leaves, punch regularizations, and active field missions.
+  - Organization structure and colleague directory dynamically populated from `/employees`.
+  - Company holiday calendar dynamically synchronized with `/calendar/holidays`.
   - View published monthly payslips with a single-year calendar filter (e.g., `2026`) and itemized earnings/deductions breakdown.
-- **Multi-Environment Switcher**: One-tap server switching between Live Cloud (Render), Localhost (USB Port Forwarding), and Local Wi-Fi.
+- **Multi-Environment Switcher**: One-tap server switching between Live Production (`https://fieldtracking.gramtarang.org/api`), Localhost (USB Port Forwarding via ADB), Wi-Fi PC, and Emulator.
 
 ### 2. 💻 Web Administration Portal (`Web_App/apps/web/`)
 - **Executive Operations Dashboard**: Live workforce metrics, today's presence percentage, late arrivals, on-leave employees, and pending approvals.
