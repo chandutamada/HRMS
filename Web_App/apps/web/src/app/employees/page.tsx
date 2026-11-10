@@ -347,9 +347,12 @@ export default function EmployeesPage() {
     setEditName(`${emp.firstName || ''} ${emp.lastName || ''}`.trim());
     setEditCode(emp.employeeCode || '');
     setEditDevId(emp.deviceUserId || emp.emergencyContactRelation || emp.employeeCode || '');
-    setEditDesig(emp.designation?.title || '');
-    setEditDeptId(emp.department?.name || '');
-    setEditManagerId(emp.reportingManager?.employeeCode || emp.reportingManager?.firstName || '');
+    setEditDesig(emp.designation?.title || emp.designation?.name || (emp as any).designationTitle || '');
+    setEditDeptId(emp.department?.name || emp.department?.title || (emp as any).departmentName || '');
+    setEditManagerId(
+      emp.reportingManager?.employeeCode ||
+      (emp.reportingManager ? `${emp.reportingManager.firstName || ''} ${emp.reportingManager.lastName || ''}`.trim() : '')
+    );
     setEditAttType(emp.workLocationType === 'OFF_SITE' || emp.workLocationType === 'REMOTE' ? 'gps' : 'biometric');
     setEditWorkMode(emp.workLocationType === 'OFF_SITE' || emp.workLocationType === 'REMOTE' ? 'wfh' : 'office');
     setEditJoining(emp.joiningDate ? emp.joiningDate.split('T')[0] : '');
@@ -903,6 +906,7 @@ export default function EmployeesPage() {
                   <label className="block font-medium text-slate-700 mb-1">Department</label>
                   <input
                     type="text"
+                    list="departments-list"
                     placeholder="e.g. Admissions / Operations"
                     value={fDept}
                     onChange={(e) => setFDept(e.target.value)}
@@ -926,7 +930,8 @@ export default function EmployeesPage() {
                   <label className="block font-medium text-slate-700 mb-1">Reporting Manager</label>
                   <input
                     type="text"
-                    placeholder="Manager Code or Name"
+                    list="employee-managers-list"
+                    placeholder="Select or enter Manager Code/Name"
                     value={fManager}
                     onChange={(e) => setFManager(e.target.value)}
                     className="w-full p-2.5 rounded-xl border border-slate-200"
@@ -1105,6 +1110,7 @@ export default function EmployeesPage() {
                   <label className="block font-medium text-slate-700 mb-1">Department</label>
                   <input
                     type="text"
+                    list="departments-list"
                     placeholder="e.g. Admissions / Operations"
                     value={editDeptId}
                     onChange={(e) => setEditDeptId(e.target.value)}
@@ -1127,7 +1133,8 @@ export default function EmployeesPage() {
                 <label className="block font-medium text-slate-700 mb-1">Reporting Manager</label>
                 <input
                   type="text"
-                  placeholder="Manager Employee Code or Name"
+                  list="employee-managers-list"
+                  placeholder="Select or enter Manager Code/Name"
                   value={editManagerId}
                   onChange={(e) => setEditManagerId(e.target.value)}
                   className="w-full p-2 rounded-xl border border-slate-200"
@@ -1613,6 +1620,26 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+
+      {/* Auto-suggest Datalists for Departments & Managers */}
+      <datalist id="departments-list">
+        {departments.map((dept: any) => (
+          <option key={dept.id || dept.name} value={dept.name || dept.title} />
+        ))}
+        <option value="Admissions" />
+        <option value="Operations" />
+        <option value="Field Logistics" />
+        <option value="Academics" />
+        <option value="Human Resources" />
+      </datalist>
+
+      <datalist id="employee-managers-list">
+        {employees.map((emp: any) => (
+          <option key={emp.id} value={emp.employeeCode}>
+            {`${emp.firstName || ''} ${emp.lastName || ''}`.trim()} ({emp.employeeCode}) {emp.designation?.title ? `- ${emp.designation.title}` : ''}
+          </option>
+        ))}
+      </datalist>
     </div>
   );
 }

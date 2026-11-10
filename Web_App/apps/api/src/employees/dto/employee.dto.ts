@@ -224,6 +224,11 @@ export class UpdateEmployeeDto {
   @IsString()
   departmentId?: string | null;
 
+  @ApiProperty({ required: false, description: 'Department Name / Title (auto-creates if id omitted)' })
+  @IsOptional()
+  @IsString()
+  departmentTitle?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
@@ -233,6 +238,16 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   designationTitle?: string;
+
+  @ApiProperty({ required: false, description: 'Biometric / Device User ID' })
+  @IsOptional()
+  @IsString()
+  deviceUserId?: string;
+
+  @ApiProperty({ required: false, description: 'Reporting Manager Code, Name or ID' })
+  @IsOptional()
+  @IsString()
+  reportingManager?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
