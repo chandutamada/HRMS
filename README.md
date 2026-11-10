@@ -192,15 +192,65 @@ HR-APPLICATION/
 
 ---
 
-## Live Cloud Deployment & Endpoints
+## Self-Hosted Production Deployment & Endpoints
 
 | Service | Environment | URL / Endpoint |
 | :--- | :--- | :--- |
-| **Backend REST API** | Live Cloud (Render) | `https://hrms-f9cq.onrender.com/api` |
-| **WebSocket Gateway**| Live Cloud (Render) | `https://hrms-f9cq.onrender.com` |
-| **Swagger OpenAPI**  | Live Cloud (Render) | `https://hrms-f9cq.onrender.com/api/docs` |
-| **Local Web Portal** | Localhost | `http://localhost:3000` |
-| **Local Backend API**| Localhost | `http://localhost:4000/api` |
+| **Web Portal Dashboard** | Production (Nginx) | `https://fieldtracking.gramtarang.org` |
+| **Backend REST API**     | Production (Nginx) | `https://fieldtracking.gramtarang.org/api` |
+| **WebSocket Gateway**    | Production (Nginx) | `wss://fieldtracking.gramtarang.org` |
+| **Swagger OpenAPI**      | Production (Nginx) | `https://fieldtracking.gramtarang.org/api/docs` |
+| **Local Web Portal**     | Localhost          | `http://localhost:3000` (or `http://localhost:3001` standalone) |
+| **Local Backend API**    | Localhost          | `http://localhost:4000/api` (or `http://localhost:3000/api`) |
+
+---
+
+## Production Server Deployment (PM2 + Nginx + Native MySQL)
+
+This application is 100% self-hosted and vendor-agnostic (zero dependencies on Render, Vercel, or TiDB).
+
+### 1. Database Setup (MySQL 8.0 / 8.4)
+On your Ubuntu/Debian production server:
+```bash
+# Create database
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS hrms_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# Import the complete pre-seeded production database dump
+mysql -u root -p hrms_db < database_dump.sql
+```
+
+### 2. Configure Environment
+Copy `.env.example` to `.env.production` at the repository root and customize credentials:
+```bash
+cp .env.example .env.production
+nano .env.production
+```
+
+### 3. Build & Launch with PM2
+```bash
+# 1. Install dependencies
+cd Web_App
+npm install
+
+# 2. Build Backend API and Standalone Web Portal
+npm run api:build
+npm run web:build
+
+# 3. Launch both services using the included PM2 configuration
+cd ..
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup
+```
+
+### 4. Configure Nginx Reverse Proxy
+Copy the provided [nginx.conf](file:///nginx.conf) to your Nginx sites directory:
+```bash
+sudo cp nginx.conf /etc/nginx/sites-available/fieldtracking.gramtarang.org
+sudo ln -s /etc/nginx/sites-available/fieldtracking.gramtarang.org /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
 
 ---
 
@@ -249,13 +299,14 @@ flutter run
 
 ---
 
-## Default Demo Credentials
+## System Credentials
 
-| Role | Email / Username | Employee Code | Default Password | Access Scope |
+| Role | Email / Identifier | Employee Code | Strong Password | Access Scope |
 | :--- | :--- | :--- | :--- | :--- |
-| **HR Admin** | `hr@gramtarang.org` | `SB-001` | `Password@123` | Full administrative, geofence, payroll & tracking access |
-| **Super Admin** | `admin@superbeeaeronautics.com` | `SB-000` | `Password@123` | Multi-company & global tenant oversight |
-| **Employee** | `employee@gramtarang.org` | `SB-004` | `Password@123` | Mobile punch, leave applications & payslip access |
+| **HR Administrator** | `hr@gramtarang.org` | `SB-001` | `HrAdmin@GramTarang2026!` | Full HR portal, payroll runs, attendance geofence, live field tracking & mobile punch |
+| **Super Admin**      | `superadmin@superbeeaeronautics.com` | `ADMIN-001` | `SuperAdmin@FieldTrack2026#` | Global multi-company administration, tenant config, and full HR access |
+| **Field Officer**    | `venkat@gramtarang.org` | `SB-002` | `Password@123` | Mobile punch, GPS waypoint tracking & field duty |
+| **Employee**         | `chandutamada4@gmail.com` | `SB-004` | `Password@123` | Geofenced office punch, leave requests & payslip viewing |
 
 ---
 

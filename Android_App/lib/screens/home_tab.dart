@@ -573,7 +573,7 @@ class _HomeTabState extends State<HomeTab> {
   @override
   Widget build(BuildContext context) {
     final employee = widget.userData['employee'] as Map<String, dynamic>? ?? {};
-    final fullName = employee['fullName'] ?? employee['firstName'] ?? 'Ramesh';
+    final fullName = employee['fullName'] ?? employee['firstName'] ?? widget.userData['email']?.toString().split('@')[0] ?? 'Employee';
     final firstName = fullName.toString().split(' ')[0];
 
     final hasCheckedIn = (_todayStatus?['hasCheckedIn'] == true) ||

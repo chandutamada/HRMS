@@ -22,12 +22,12 @@ class AppDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final employee = userData['employee'] as Map<String, dynamic>? ?? {};
-    final fullName = employee['fullName'] ?? employee['firstName'] ?? 'Ramesh';
+    final fullName = employee['fullName'] ?? employee['firstName'] ?? userData['email']?.toString().split('@')[0] ?? 'Employee';
 
-    String designation = 'Software Developer';
+    String designation = 'Team Member';
     final desigVal = employee['designation'];
     if (desigVal is Map) {
-      designation = desigVal['title']?.toString() ?? desigVal['name']?.toString() ?? 'Software Developer';
+      designation = desigVal['title']?.toString() ?? desigVal['name']?.toString() ?? 'Team Member';
     } else if (desigVal != null && desigVal.toString().isNotEmpty) {
       designation = desigVal.toString();
     }

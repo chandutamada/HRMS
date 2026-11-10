@@ -7,7 +7,7 @@ import { Building, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2 } from 'luc
 export default function LoginPage() {
   const { login } = useAuth();
   const [identifier, setIdentifier] = useState('hr@gramtarang.org');
-  const [password, setPassword] = useState('Password@123');
+  const [password, setPassword] = useState('HrAdmin@GramTarang2026!');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -45,29 +45,24 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Demo Quick-Fill Buttons */}
+        {/* HR Administrator Quick Fill */}
         <div className="mt-6 rounded-2xl border border-slate-700/60 bg-slate-800/40 p-3 text-xs">
           <span className="block text-[11px] font-semibold text-emerald-400 uppercase tracking-wider mb-2">
-            Administrator Credentials
+            HR Administrator Access
           </span>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleDemoFill('hr@gramtarang.org', 'Password@123')}
-              className="rounded-lg bg-emerald-950/40 border border-emerald-500/30 hover:bg-emerald-900/50 p-2 text-left text-[11px] text-slate-200 transition"
-            >
-              <strong className="block text-emerald-300">HR Admin</strong>
-              <span className="text-[10px] text-slate-400">hr@gramtarang.org</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDemoFill('superadmin@superbeeaeronautics.com', 'Admin@123456')}
-              className="rounded-lg bg-slate-700/60 hover:bg-slate-700 p-2 text-left text-[11px] text-slate-200 transition"
-            >
-              <strong className="block text-white">Super Admin</strong>
-              <span className="text-[10px] text-slate-400">superadmin@...</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => handleDemoFill('hr@gramtarang.org', 'HrAdmin@GramTarang2026!')}
+            className="w-full flex items-center justify-between rounded-xl bg-emerald-950/40 border border-emerald-500/30 hover:bg-emerald-900/50 p-2.5 text-left text-[11px] text-slate-200 transition"
+          >
+            <div>
+              <strong className="block text-emerald-300 text-xs">HR Admin</strong>
+              <span className="text-[11px] text-slate-400">hr@gramtarang.org</span>
+            </div>
+            <span className="text-[10px] font-medium text-emerald-400 bg-emerald-900/50 px-2.5 py-1 rounded-full border border-emerald-500/30">
+              Quick Fill
+            </span>
+          </button>
         </div>
 
         {/* Error message */}
@@ -92,7 +87,7 @@ export default function LoginPage() {
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="e.g. superadmin@hrms.internal or SB-001"
+                placeholder="e.g. hr@gramtarang.org or SB-001"
                 className="w-full rounded-xl border border-slate-700 bg-slate-800/80 py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition"
               />
             </div>

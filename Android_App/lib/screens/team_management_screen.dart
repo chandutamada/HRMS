@@ -60,43 +60,43 @@ class TeamManagementScreen extends StatelessWidget {
   List<Widget> _buildSectionContent(BuildContext context) {
     if (section == 'CALENDAR') {
       return [
-        _buildMemberStatusTile('Priya Patel', 'SB-002 • On-Site Engineer', 'In Office (50m Geofence)', const Color(0xFF16A34A)),
-        _buildMemberStatusTile('Suresh Menon', 'SB-003 • Drone Flight Pilot', 'On Field Duty (Site Alpha)', const Color(0xFF2563EB)),
-        _buildMemberStatusTile('Kuldeep Singh', 'SB-004 • QA Specialist', 'On Approved Leave (CL)', const Color(0xFFD97706)),
-        _buildMemberStatusTile('Abhijit Paul', 'SB-005 • Hardware Tech', 'In Office (50m Geofence)', const Color(0xFF16A34A)),
+        _buildMemberStatusTile('Venkat', 'SB-002 • Field Specialist', 'On Field Duty (Site Alpha)', const Color(0xFF2563EB)),
+        _buildMemberStatusTile('Ram', 'SB-003 • Aeronautical Engineer', 'On Field Duty (Drone Site)', const Color(0xFF2563EB)),
+        _buildMemberStatusTile('T Chandu', 'SB-004 • Operations Lead', 'In Office (50m Geofence)', const Color(0xFF16A34A)),
+        _buildMemberStatusTile('Manoj Kumar', 'GTIDS-002 • Field Lead', 'On Field Duty (Active Route)', const Color(0xFF2563EB)),
       ];
     } else if (section == 'LEAVE') {
       return [
         _buildApprovalCard(
           context,
-          employee: 'Kuldeep Singh (SB-004)',
+          employee: 'Venkat (SB-002)',
           type: 'Casual Leave (CL)',
-          dates: '16 Sep 2026 – 17 Sep 2026 (2 Days)',
-          reason: 'Family function at hometown',
+          dates: '16 Nov 2026 – 17 Nov 2026 (2 Days)',
+          reason: 'Personal work at hometown',
         ),
         _buildApprovalCard(
           context,
-          employee: 'Sneha Reddy (SB-006)',
+          employee: 'Ram (SB-003)',
           type: 'Sick Leave (SL)',
-          dates: '18 Sep 2026 (1 Day)',
-          reason: 'Doctor appointment for dental checkup',
+          dates: '18 Nov 2026 (1 Day)',
+          reason: 'Medical consultation',
         ),
       ];
     } else if (section == 'REGULARISATION') {
       return [
         _buildApprovalCard(
           context,
-          employee: 'Suresh Menon (SB-003)',
+          employee: 'T Chandu (SB-004)',
           type: 'Punch Regularisation',
-          dates: '12 Sep 2026 (09:00 AM – 05:30 PM)',
-          reason: 'GPS glitch during remote site testing in Bangalore outskirts',
+          dates: '12 Nov 2026 (09:00 AM – 05:30 PM)',
+          reason: 'Client site field testing near Nellimarla',
         ),
       ];
     } else {
       // OUT_ON_DUTY
       return [
-        _buildMemberStatusTile('Suresh Menon', 'Active Mission • Electronic City Phase 1', '6.45 KM Traveled • 2 Stops', const Color(0xFF2563EB)),
-        _buildMemberStatusTile('Vikram Mehta', 'Scheduled Mission • Devanahalli Campus', 'Scheduled for 02:00 PM', const Color(0xFF64748B)),
+        _buildMemberStatusTile('Venkat', 'Active Mission • Vizianagaram Route', '6.45 KM Traveled • 2 Stops', const Color(0xFF2563EB)),
+        _buildMemberStatusTile('Ram', 'Scheduled Mission • Nellimarla Field', 'Scheduled for 02:00 PM', const Color(0xFF64748B)),
       ];
     }
   }
