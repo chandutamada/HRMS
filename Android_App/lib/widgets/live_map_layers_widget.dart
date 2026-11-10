@@ -34,8 +34,8 @@ class _LiveMapLayersWidgetState extends State<LiveMapLayersWidget> {
   MapType _currentMapType = MapType.normal;
   bool _followUser = true;
 
-  // Default Bangalore fallback coordinate
-  static const LatLng _bangaloreOffice = LatLng(13.04983, 77.62024);
+  // Default headquarters fallback coordinate
+  static const LatLng _defaultOffice = LatLng(18.18955, 83.38711);
 
   @override
   void didUpdateWidget(covariant LiveMapLayersWidget oldWidget) {
@@ -209,7 +209,7 @@ class _LiveMapLayersWidgetState extends State<LiveMapLayersWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final initialPos = widget.currentLocation ?? widget.officeLocation ?? _bangaloreOffice;
+    final initialPos = widget.currentLocation ?? widget.officeLocation ?? _defaultOffice;
 
     return Stack(
       children: [

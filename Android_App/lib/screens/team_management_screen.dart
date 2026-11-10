@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
-class TeamManagementScreen extends StatelessWidget {
+class TeamManagementScreen extends StatefulWidget {
   final String title;
   final String section; // 'CALENDAR' | 'LEAVE' | 'REGULARISATION' | 'OUT_ON_DUTY'
   final Map<String, dynamic> userData;
@@ -11,6 +12,221 @@ class TeamManagementScreen extends StatelessWidget {
     required this.section,
     required this.userData,
   });
+
+  @override
+  State<TeamManagementScreen> createState() => _TeamManagementScreenState();
+}
+
+class _TeamManagementScreenState extends State<TeamManagementScreen> {
+  bool _isLoading = true;
+  List<Widget> _items = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSectionData();
+  }
+
+  Future<void> _fetchSectionData() async {
+    setState(() => _isLoading = true);
+    final List<Widget> widgets = [];
+
+    try {
+      if (widget.section == 'CALENDAR') {
+        final res = await ApiService()
+            .dio
+            .get('/employees')
+            .timeout(const Duration(seconds: 10));
+
+        final raw = res.data;
+        List<dynamic> emps = [];
+        if (raw is Map && raw['data'] is List) {
+          emps = raw['data'];
+        } else if (raw is List) {
+          emps = raw;
+        }
+
+        for (final emp in emps) {
+          final first = emp['firstName'] ?? '';
+          final last = emp['lastName'] ?? '';
+          final name = '$first $last'.trim().isEmpty ? (emp['email'] ?? 'Employee') : '$first $last'.trim();
+          final code = emp['employeeCode'] ?? '';
+          final desig = emp['designation']?['title'] ?? emp['department']?['name'] ?? 'Staff Member';
+          final isField = emp['workLocationType'] == 'OFF_SITE';
+
+          widgets.add(
+            _buildMemberStatusTile(
+              name,
+              code.isNotEmpty ? '$code • $desig' : desig,
+              isField ? 'Field / GPS Active' : 'In Office Range',
+              isField ? const Color(0xFF2563EB) : const Color(0xFF16A34A),
+            ),
+          );
+        }
+      } else if (widget.section == 'LEAVE') {
+        final res = await ApiService()
+            .dio
+            .get('/leave/applications', queryParameters: {'status': 'PENDING'})
+            .timeout(const Duration(seconds: 10));
+
+        final raw = res.data;
+        List<dynamic> apps = [];
+        if (raw is Map && raw['data'] is List) {
+          apps = raw['data'];
+        } else if (raw is List) {
+          apps = raw;
+        }
+
+        for (final app in apps) {
+          final emp = app['employee'] as Map<String, dynamic>? ?? {};
+          final first = emp['firstName'] ?? '';
+          final last = emp['lastName'] ?? '';
+          final empName = '$first $last'.trim().isEmpty ? (emp['email'] ?? 'Employee') : '$first $last'.trim();
+          final code = emp['employeeCode'] ?? '';
+
+          final leaveType = app['leaveType']?['name']?.toString() ?? 'Leave Application';
+          final sDate = app['startDate']?.toString().split('T')[0] ?? '';
+          final eDate = app['endDate']?.toString().split('T')[0] ?? '';
+          final days = app['days'] ?? 1;
+          final reason = app['reason']?.toString() ?? 'Personal reasons';
+          final appId = app['id']?.toString() ?? '';
+
+          widgets.add(
+            _buildApprovalCard(
+              context,
+              employee: code.isNotEmpty ? '$empName ($code)' : empName,
+              type: leaveType,
+              dates: '$sDate – $eDate ($days Day(s))',
+              reason: reason,
+              onReject: () => _reviewLeave(appId, 'REJECTED'),
+              onApprove: () => _reviewLeave(appId, 'APPROVED'),
+            ),
+          );
+        }
+      } else if (widget.section == 'REGULARISATION') {
+        final res = await ApiService()
+            .dio
+            .get('/attendance/corrections/pending')
+            .timeout(const Duration(seconds: 10));
+
+        final raw = res.data;
+        List<dynamic> corrs = [];
+        if (raw is Map && raw['data'] is List) {
+          corrs = raw['data'];
+        } else if (raw is List) {
+          corrs = raw;
+        }
+
+        for (final corr in corrs) {
+          final emp = corr['employee'] as Map<String, dynamic>? ?? {};
+          final first = emp['firstName'] ?? '';
+          final last = emp['lastName'] ?? '';
+          final empName = '$first $last'.trim().isEmpty ? (emp['email'] ?? 'Employee') : '$first $last'.trim();
+          final code = emp['employeeCode'] ?? '';
+
+          final dateStr = corr['date']?.toString().split('T')[0] ?? 'Recent';
+          final inTime = corr['requestedCheckIn'] ?? '--:--';
+          final outTime = corr['requestedCheckOut'] ?? '--:--';
+          final reason = corr['reason']?.toString() ?? 'No reason provided';
+          final corrId = corr['id']?.toString() ?? '';
+
+          widgets.add(
+            _buildApprovalCard(
+              context,
+              employee: code.isNotEmpty ? '$empName ($code)' : empName,
+              type: 'Punch Regularisation Request',
+              dates: '$dateStr ($inTime – $outTime)',
+              reason: reason,
+              onReject: () => _reviewCorrection(corrId, 'REJECTED'),
+              onApprove: () => _reviewCorrection(corrId, 'APPROVED'),
+            ),
+          );
+        }
+      } else if (widget.section == 'OUT_ON_DUTY') {
+        final res = await ApiService()
+            .dio
+            .get('/tracking/team/live')
+            .timeout(const Duration(seconds: 10));
+
+        final raw = res.data;
+        List<dynamic> liveTeam = [];
+        if (raw is Map && raw['data'] is List) {
+          liveTeam = raw['data'];
+        } else if (raw is List) {
+          liveTeam = raw;
+        }
+
+        for (final member in liveTeam) {
+          final emp = member['employee'] as Map<String, dynamic>? ?? member;
+          final first = emp['firstName'] ?? '';
+          final last = emp['lastName'] ?? '';
+          final name = '$first $last'.trim().isEmpty ? (emp['email'] ?? 'Field Officer') : '$first $last'.trim();
+          final isMoving = member['isMoving'] == true;
+          final speed = member['speed'] != null ? '${member['speed']} km/h' : 'Stationary';
+
+          widgets.add(
+            _buildMemberStatusTile(
+              name,
+              isMoving ? 'En Route ($speed)' : 'On Site Standby',
+              isMoving ? 'Moving • Active GPS' : 'At Client Location',
+              isMoving ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      // Graceful fallback to empty state
+    } finally {
+      if (mounted) {
+        setState(() {
+          _items = widgets;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _reviewLeave(String id, String status) async {
+    try {
+      await ApiService().dio.put('/leave/applications/$id/review', data: {'status': status});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Leave request marked as $status'),
+            backgroundColor: status == 'APPROVED' ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+          ),
+        );
+        _fetchSectionData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update leave request.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _reviewCorrection(String id, String status) async {
+    try {
+      await ApiService().dio.put('/attendance/corrections/$id/review', data: {'status': status});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Regularisation marked as $status'),
+            backgroundColor: status == 'APPROVED' ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+          ),
+        );
+        _fetchSectionData();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update regularisation request.')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +253,7 @@ class TeamManagementScreen extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    title,
+                    widget.title,
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -47,58 +263,41 @@ class TeamManagementScreen extends StatelessWidget {
           ),
 
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: _buildSectionContent(context),
-            ),
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF7C3AED)),
+                  )
+                : _items.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade400),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No pending items',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'All team records and requests are up to date.',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        color: const Color(0xFF7C3AED),
+                        onRefresh: _fetchSectionData,
+                        child: ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: _items,
+                        ),
+                      ),
           ),
         ],
       ),
     );
-  }
-
-  List<Widget> _buildSectionContent(BuildContext context) {
-    if (section == 'CALENDAR') {
-      return [
-        _buildMemberStatusTile('Venkat', 'SB-002 • Field Specialist', 'On Field Duty (Site Alpha)', const Color(0xFF2563EB)),
-        _buildMemberStatusTile('Ram', 'SB-003 • Aeronautical Engineer', 'On Field Duty (Drone Site)', const Color(0xFF2563EB)),
-        _buildMemberStatusTile('T Chandu', 'SB-004 • Operations Lead', 'In Office (50m Geofence)', const Color(0xFF16A34A)),
-        _buildMemberStatusTile('Manoj Kumar', 'GTIDS-002 • Field Lead', 'On Field Duty (Active Route)', const Color(0xFF2563EB)),
-      ];
-    } else if (section == 'LEAVE') {
-      return [
-        _buildApprovalCard(
-          context,
-          employee: 'Venkat (SB-002)',
-          type: 'Casual Leave (CL)',
-          dates: '16 Nov 2026 – 17 Nov 2026 (2 Days)',
-          reason: 'Personal work at hometown',
-        ),
-        _buildApprovalCard(
-          context,
-          employee: 'Ram (SB-003)',
-          type: 'Sick Leave (SL)',
-          dates: '18 Nov 2026 (1 Day)',
-          reason: 'Medical consultation',
-        ),
-      ];
-    } else if (section == 'REGULARISATION') {
-      return [
-        _buildApprovalCard(
-          context,
-          employee: 'T Chandu (SB-004)',
-          type: 'Punch Regularisation',
-          dates: '12 Nov 2026 (09:00 AM – 05:30 PM)',
-          reason: 'Client site field testing near Nellimarla',
-        ),
-      ];
-    } else {
-      // OUT_ON_DUTY
-      return [
-        _buildMemberStatusTile('Venkat', 'Active Mission • Vizianagaram Route', '6.45 KM Traveled • 2 Stops', const Color(0xFF2563EB)),
-        _buildMemberStatusTile('Ram', 'Scheduled Mission • Nellimarla Field', 'Scheduled for 02:00 PM', const Color(0xFF64748B)),
-      ];
-    }
   }
 
   Widget _buildMemberStatusTile(String name, String role, String status, Color color) {
@@ -114,7 +313,10 @@ class TeamManagementScreen extends StatelessWidget {
         children: [
           CircleAvatar(
             backgroundColor: color.withValues(alpha: 0.15),
-            child: Text(name.substring(0, 1), style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+            child: Text(
+              name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?',
+              style: TextStyle(fontWeight: FontWeight.bold, color: color),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -145,6 +347,8 @@ class TeamManagementScreen extends StatelessWidget {
     required String type,
     required String dates,
     required String reason,
+    required VoidCallback onReject,
+    required VoidCallback onApprove,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -169,11 +373,7 @@ class TeamManagementScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               OutlinedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Request marked as Rejected')),
-                  );
-                },
+                onPressed: onReject,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFFDC2626),
                   side: const BorderSide(color: Color(0xFFDC2626)),
@@ -183,14 +383,7 @@ class TeamManagementScreen extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Request Approved successfully'),
-                      backgroundColor: Color(0xFF16A34A),
-                    ),
-                  );
-                },
+                onPressed: onApprove,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF16A34A),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

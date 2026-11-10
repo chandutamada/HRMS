@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 
-class TransactionsScreen extends StatelessWidget {
+class TransactionsScreen extends StatefulWidget {
   final String title;
   final String type; // 'ATTENDANCE' | 'LEAVE' | 'OUT_ON_DUTY'
   final Map<String, dynamic> userData;
@@ -11,6 +12,177 @@ class TransactionsScreen extends StatelessWidget {
     required this.type,
     required this.userData,
   });
+
+  @override
+  State<TransactionsScreen> createState() => _TransactionsScreenState();
+}
+
+class _TransactionsScreenState extends State<TransactionsScreen> {
+  bool _isLoading = true;
+  List<Widget> _transactionCards = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTransactions();
+  }
+
+  Future<void> _fetchTransactions() async {
+    setState(() => _isLoading = true);
+    final List<Widget> cards = [];
+
+    try {
+      if (widget.type == 'ATTENDANCE') {
+        final res = await ApiService()
+            .dio
+            .get('/attendance/history', queryParameters: {'limit': 50})
+            .timeout(const Duration(seconds: 10));
+
+        final raw = res.data;
+        List<dynamic> items = [];
+        if (raw is Map && raw['data'] != null) {
+          final d = raw['data'];
+          if (d is Map && d['items'] is List) {
+            items = d['items'];
+          } else if (d is List) {
+            items = d;
+          }
+        } else if (raw is Map && raw['items'] is List) {
+          items = raw['items'];
+        } else if (raw is List) {
+          items = raw;
+        }
+
+        for (final rec in items) {
+          final status = rec['status']?.toString() ?? 'RECORDED';
+          final dateStr = rec['date'] != null ? rec['date'].toString().split('T')[0] : 'Recent';
+          final isPresent = status == 'PRESENT';
+          final isAbsent = status == 'ABSENT';
+
+          final statusColor = isPresent
+              ? const Color(0xFF16A34A)
+              : (isAbsent ? const Color(0xFFDC2626) : const Color(0xFFD97706));
+
+          final firstIn = rec['firstCheckIn'] != null
+              ? (rec['firstCheckIn'].toString().contains('T')
+                  ? rec['firstCheckIn'].toString().split('T')[1].split('.')[0]
+                  : rec['firstCheckIn'].toString())
+              : null;
+
+          final lastOut = rec['lastCheckOut'] != null
+              ? (rec['lastCheckOut'].toString().contains('T')
+                  ? rec['lastCheckOut'].toString().split('T')[1].split('.')[0]
+                  : rec['lastCheckOut'].toString())
+              : null;
+
+          final subtitle = firstIn != null
+              ? 'Punch In: $firstIn • Punch Out: ${lastOut ?? 'In Progress'}'
+              : 'Status: $status';
+
+          final totalMins = int.tryParse('${rec['totalWorkMinutes']}') ?? 0;
+          final isLate = rec['isLate'] == true;
+          final lateMins = int.tryParse('${rec['lateMinutes']}') ?? 0;
+
+          final details = totalMins > 0
+              ? 'Worked: ${totalMins ~/ 60}h ${totalMins % 60}m • Late: ${isLate ? '${lateMins}m' : 'On Time'}'
+              : (isLate ? 'Late by $lateMins minutes' : 'Standard scheduled day');
+
+          cards.add(
+            _buildTransactionCard(
+              title: isPresent ? 'Attendance • Present' : 'Attendance • $status',
+              date: dateStr,
+              status: status,
+              statusColor: statusColor,
+              subtitle: subtitle,
+              details: details,
+            ),
+          );
+        }
+      } else if (widget.type == 'LEAVE') {
+        final res = await ApiService()
+            .dio
+            .get('/leave/applications/my')
+            .timeout(const Duration(seconds: 10));
+
+        final raw = res.data;
+        List<dynamic> items = [];
+        if (raw is Map && raw['data'] is List) {
+          items = raw['data'];
+        } else if (raw is List) {
+          items = raw;
+        }
+
+        for (final app in items) {
+          final status = app['status']?.toString() ?? 'PENDING';
+          final statusColor = status == 'APPROVED'
+              ? const Color(0xFF16A34A)
+              : (status == 'REJECTED' ? const Color(0xFFDC2626) : const Color(0xFFD97706));
+
+          final leaveTypeName = app['leaveType']?['name']?.toString() ?? 'Leave Application';
+          final days = app['days'] ?? 1;
+
+          final sDate = app['startDate']?.toString().split('T')[0] ?? '';
+          final eDate = app['endDate']?.toString().split('T')[0] ?? '';
+          final dateStr = sDate == eDate ? sDate : '$sDate – $eDate';
+
+          final reason = app['reason']?.toString() ?? 'Not specified';
+          final appliedAt = app['createdAt']?.toString().split('T')[0] ?? '';
+
+          cards.add(
+            _buildTransactionCard(
+              title: '$leaveTypeName • $days Day(s)',
+              date: dateStr,
+              status: status,
+              statusColor: statusColor,
+              subtitle: 'Reason: $reason',
+              details: 'Applied on: $appliedAt',
+            ),
+          );
+        }
+      } else if (widget.type == 'OUT_ON_DUTY') {
+        final res = await ApiService()
+            .dio
+            .get('/tracking/sessions')
+            .timeout(const Duration(seconds: 10));
+
+        final raw = res.data;
+        List<dynamic> items = [];
+        if (raw is Map && raw['data'] is List) {
+          items = raw['data'];
+        } else if (raw is List) {
+          items = raw;
+        }
+
+        for (final sess in items) {
+          final status = sess['status']?.toString() ?? 'COMPLETED';
+          final statusColor = status == 'IN_PROGRESS' ? const Color(0xFF2563EB) : const Color(0xFF16A34A);
+          final dist = sess['distanceKm'] != null ? '${sess['distanceKm']} km' : '0 km';
+          final sTime = sess['startTime']?.toString().split('T')[0] ?? 'Recent';
+          final area = sess['areaName']?.toString() ?? 'Field Station';
+
+          cards.add(
+            _buildTransactionCard(
+              title: 'Field Duty Mission • $area',
+              date: sTime,
+              status: status,
+              statusColor: statusColor,
+              subtitle: 'Distance: $dist',
+              details: 'Session ID: ${sess['id']}',
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      // Graceful fallback to empty state
+    } finally {
+      if (mounted) {
+        setState(() {
+          _transactionCards = cards;
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +209,7 @@ class TransactionsScreen extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    title,
+                    widget.title,
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -47,86 +219,41 @@ class TransactionsScreen extends StatelessWidget {
           ),
 
           Expanded(
-            child: _buildTransactionList().isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey.shade400),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No transactions recorded',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Transactions synchronized with HR will show here.',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-                        ),
-                      ],
-                    ),
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF7C3AED)),
                   )
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: _buildTransactionList(),
-                  ),
+                : _transactionCards.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey.shade400),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No transactions recorded',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Transactions synchronized with HR will show here.',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        color: const Color(0xFF7C3AED),
+                        onRefresh: _fetchTransactions,
+                        child: ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: _transactionCards,
+                        ),
+                      ),
           ),
         ],
       ),
     );
-  }
-
-  List<Widget> _buildTransactionList() {
-    if (type == 'ATTENDANCE') {
-      return [
-        _buildTransactionCard(
-          title: 'Check-In • On-Site Geofenced',
-          date: '15 Sep 2026, 09:02 AM',
-          status: 'SUCCESS',
-          statusColor: const Color(0xFF16A34A),
-          subtitle: 'Bangalore Campus (GPS Accuracy ±4.2m)',
-          details: 'Device GPS verified within 50m office radius',
-        ),
-        _buildTransactionCard(
-          title: 'Check-Out • Regular Day End',
-          date: '14 Sep 2026, 05:36 PM',
-          status: 'SUCCESS',
-          statusColor: const Color(0xFF16A34A),
-          subtitle: 'Total span: 8h 34m (09:00 AM – 05:30 PM)',
-          details: 'Within 50m geofence perimeter',
-        ),
-        _buildTransactionCard(
-          title: 'Check-In • Office Hours',
-          date: '14 Sep 2026, 09:02 AM',
-          status: 'SUCCESS',
-          statusColor: const Color(0xFF16A34A),
-          subtitle: 'Bangalore Campus',
-          details: 'Verified by backend Haversine calculation',
-        ),
-      ];
-    } else if (type == 'LEAVE') {
-      return [
-        _buildTransactionCard(
-          title: 'Casual Leave (CL) • 1.0 Day',
-          date: '02 Sep 2026 – 02 Sep 2026',
-          status: 'APPROVED',
-          statusColor: const Color(0xFF16A34A),
-          subtitle: 'Reason: Personal emergency at home',
-          details: 'Deducted from CL Balance (Remaining: 8.5)',
-        ),
-        _buildTransactionCard(
-          title: 'Sick Leave (SL) • 2.0 Days',
-          date: '18 Aug 2026 – 19 Aug 2026',
-          status: 'APPROVED',
-          statusColor: const Color(0xFF16A34A),
-          subtitle: 'Reason: Viral fever',
-          details: 'Approved by Reporting Manager',
-        ),
-      ];
-    } else {
-      // OUT_ON_DUTY - No dummy transactions
-      return [];
-    }
   }
 
   Widget _buildTransactionCard({

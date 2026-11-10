@@ -792,11 +792,14 @@ class _MyCalendarScreenState extends State<MyCalendarScreen> {
               const SizedBox(height: 12),
             ],
 
+            final officeLoc = widget.userData['employee']?['officeLocation'] as Map<String, dynamic>? ?? widget.userData['office'] as Map<String, dynamic>?;
+            final locName = officeLoc?['name']?.toString() ?? widget.userData['company']?['name']?.toString() ?? 'Assigned Workplace';
+
             _buildDetailRow('First Punch In', punchInStr),
             _buildDetailRow('Last Punch Out', punchOutStr),
             _buildDetailRow('Total Work Hours', workHoursStr),
             _buildDetailRow('Working Hours', '09:00 AM – 05:30 PM (IST)'),
-            _buildDetailRow('Location', 'Superbee Aeronautics HQ (Bangalore 50m)'),
+            _buildDetailRow('Location', locName),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

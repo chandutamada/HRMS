@@ -149,6 +149,9 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
   Widget _buildAttendanceView() {
     final employee = widget.userData['employee'] as Map<String, dynamic>? ?? {};
     final fullName = employee['fullName'] ?? employee['firstName'] ?? widget.userData['email'] ?? 'Employee';
+    final office = employee['officeLocation'] as Map<String, dynamic>? ?? widget.userData['company'] as Map<String, dynamic>?;
+    final officeName = office?['name']?.toString() ?? 'Assigned Workplace';
+    final radiusM = office?['radiusMeters'] != null ? '${office!['radiusMeters']}m' : '50m';
 
     return Stack(
       children: [
@@ -236,7 +239,7 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(fullName.toString(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                          const Text('Electronic City / Bangalore Unit (50m Radius)', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                          Text('$officeName ($radiusM Radius)', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                         ],
                       ),
                     ),
@@ -519,7 +522,11 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
   // 3. DETAILED HISTORY OF THE DAY'S ACTIVITY (Panel 3 of Image 5)
   Widget _buildDayActivityView() {
     final employee = widget.userData['employee'] as Map<String, dynamic>? ?? {};
-    final fullName = employee['fullName'] ?? 'Emily Josh';
+    final fullName = employee['fullName'] ?? employee['firstName'] ?? widget.userData['email'] ?? 'Field Officer';
+    final office = employee['officeLocation'] as Map<String, dynamic>? ?? widget.userData['company'] as Map<String, dynamic>?;
+    final officeName = office?['name']?.toString() ?? 'Assigned Workplace';
+    final initial = fullName.toString().isNotEmpty ? fullName.toString().substring(0, 1).toUpperCase() : 'F';
+    final photoUrl = employee['photoUrl']?.toString();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -540,13 +547,24 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
                     Container(
                       width: 48,
                       height: 48,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        image: DecorationImage(
-                          image: NetworkImage('https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop'),
-                          fit: BoxFit.cover,
-                        ),
+                        color: const Color(0xFF7C3AED),
+                        image: photoUrl != null && photoUrl.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(photoUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
                       ),
+                      child: photoUrl == null || photoUrl.isEmpty
+                          ? Center(
+                              child: Text(
+                                initial,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                              ),
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -554,7 +572,7 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(fullName.toString(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                          const Text('Madambakkam, Chennai Hub', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                          Text(officeName, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
                         ],
                       ),
                     ),
@@ -577,28 +595,28 @@ class _FieldDutyScreenState extends State<FieldDutyScreen> with SingleTickerProv
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       Column(
                         children: [
-                          Text('10.2 Hrs', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                          SizedBox(height: 2),
-                          Text('TOTAL DURATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                          Text(_activities.isNotEmpty ? '${_activities.length * 1.5} Hrs' : '0.0 Hrs', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                          const SizedBox(height: 2),
+                          const Text('TOTAL DURATION', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
                         ],
                       ),
                       Column(
                         children: [
-                          Text('50 KM', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
-                          SizedBox(height: 2),
-                          Text('TOTAL DISTANCE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                          Text(_activities.isNotEmpty ? '${_activities.length * 5} KM' : '0 KM', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+                          const SizedBox(height: 2),
+                          const Text('TOTAL DISTANCE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
                         ],
                       ),
                       Column(
                         children: [
-                          Text('06', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF16A34A))),
-                          SizedBox(height: 2),
-                          Text('TOTAL CHECKINS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                          Text(_activities.isNotEmpty ? (_activities.length < 10 ? '0${_activities.length}' : '${_activities.length}') : '00', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF16A34A))),
+                          const SizedBox(height: 2),
+                          const Text('TOTAL CHECKINS', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
                         ],
                       ),
                     ],

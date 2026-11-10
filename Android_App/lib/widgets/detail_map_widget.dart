@@ -25,7 +25,7 @@ class _DetailMapWidgetState extends State<DetailMapWidget> {
   GoogleMapController? _controller;
   MapType _mapType = MapType.normal;
 
-  static const LatLng _bangaloreOffice = LatLng(13.04983, 77.62024);
+  static const LatLng _defaultOffice = LatLng(18.18955, 83.38711);
 
   Set<Polyline> _buildPolylines() {
     if (widget.routePoints.length < 2) return {};
@@ -138,7 +138,7 @@ class _DetailMapWidgetState extends State<DetailMapWidget> {
   Widget build(BuildContext context) {
     final initialPos = widget.routePoints.isNotEmpty
         ? LatLng(widget.routePoints.first.lat, widget.routePoints.first.lng)
-        : _bangaloreOffice;
+        : _defaultOffice;
 
     return Stack(
       children: [

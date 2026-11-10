@@ -21,8 +21,8 @@ class LiveTrackingScreen extends StatefulWidget {
 class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   final TrackingService _tracking = TrackingService();
 
-  // Office location anchor (default Bangalore HQ)
-  LatLng _officeLoc = const LatLng(13.04983, 77.62024);
+  // Office location anchor (dynamic or campus default)
+  LatLng _officeLoc = const LatLng(18.18955, 83.38711);
   final double _officeRadius = 50.0;
 
   @override
@@ -47,15 +47,26 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   }
 
   void _extractOfficeCoords() {
+    final office = widget.userData['employee']?['officeLocation'] as Map<String, dynamic>? ??
+        widget.userData['office'] as Map<String, dynamic>?;
+    if (office != null && office['latitude'] != null && office['longitude'] != null) {
+      final lat = double.tryParse('${office['latitude']}');
+      final lng = double.tryParse('${office['longitude']}');
+      if (lat != null && lng != null) {
+        _officeLoc = LatLng(lat, lng);
+        return;
+      }
+    }
+
     final company = widget.userData['company'] as Map<String, dynamic>?;
     final code = company?['code']?.toString().toUpperCase() ?? 'SUPERBEE';
 
     if (code == 'GTIDS') {
-      _officeLoc = const LatLng(17.44744, 78.37623); // Hyderabad
-    } else if (code == 'GTIB') {
-      _officeLoc = const LatLng(19.06622, 72.86875); // Mumbai
+      _officeLoc = const LatLng(18.18955, 83.38711);
+    } else if (code == 'GTIB' || code == 'CUTMAP') {
+      _officeLoc = const LatLng(18.18955, 83.38711);
     } else {
-      _officeLoc = const LatLng(13.04983, 77.62024); // Bangalore
+      _officeLoc = const LatLng(18.18955, 83.38711);
     }
   }
 
