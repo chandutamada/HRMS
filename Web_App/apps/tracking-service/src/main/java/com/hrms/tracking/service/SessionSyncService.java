@@ -75,22 +75,54 @@ public class SessionSyncService {
         routePointRepository.deleteBySessionId(savedSession.getId());
         checkpointRepository.deleteBySessionId(savedSession.getId());
 
-        // 3. Persist route points
+        // 3. Persist route points (with Ghost / Speed Jump / Accuracy Filter)
         int pointsCount = 0;
         if (request.getRoutePoints() != null && !request.getRoutePoints().isEmpty()) {
-            List<RoutePoint> routePoints = request.getRoutePoints().stream().map(pt -> RoutePoint.builder()
-                    .id(UUID.randomUUID().toString())
-                    .session(savedSession)
-                    .latitude(pt.getLat())
-                    .longitude(pt.getLng())
-                    .altitude(pt.getAlt())
-                    .speed(pt.getSpeed())
-                    .accuracy(pt.getAccuracy())
-                    .timestamp(pt.getTs() != null ? toLocalDateTime(pt.getTs()) : LocalDateTime.now())
-                    .build()).collect(Collectors.toList());
+            final String sessionUserId = employee.getUserId() != null ? employee.getUserId() : savedSession.getUserId();
+            List<RoutePoint> routePoints = new ArrayList<>();
+            RoutePoint prevPt = null;
 
-            routePointRepository.saveAll(routePoints);
-            pointsCount = routePoints.size();
+            for (RoutePointDto pt : request.getRoutePoints()) {
+                if (pt.getLat() == null || pt.getLng() == null) continue;
+                if (pt.getLat() == 0.0 && pt.getLng() == 0.0) continue;
+                if (pt.getAccuracy() != null && pt.getAccuracy() > 35.0) continue;
+
+                LocalDateTime ptTs = pt.getTs() != null ? toLocalDateTime(pt.getTs()) : LocalDateTime.now();
+
+                // Speed jump verification between consecutive points
+                if (prevPt != null) {
+                    double distMeters = GeofenceUtil.calculateHaversineDistance(
+                            prevPt.getLatitude(), prevPt.getLongitude(),
+                            pt.getLat(), pt.getLng()
+                    );
+                    long millis = Math.max(50, java.time.Duration.between(prevPt.getTimestamp(), ptTs).toMillis());
+                    double speedKmh = (distMeters / (millis / 1000.0)) * 3.6;
+                    if (speedKmh > 130.0) {
+                        log.debug("SessionSync: Discarding speed jump point {} km/h > 130 km/h", speedKmh);
+                        continue;
+                    }
+                }
+
+                RoutePoint rp = RoutePoint.builder()
+                        .id(UUID.randomUUID().toString())
+                        .session(savedSession)
+                        .userId(sessionUserId)
+                        .latitude(pt.getLat())
+                        .longitude(pt.getLng())
+                        .altitude(pt.getAlt())
+                        .speed(pt.getSpeed())
+                        .accuracy(pt.getAccuracy())
+                        .timestamp(ptTs)
+                        .build();
+
+                routePoints.add(rp);
+                prevPt = rp;
+            }
+
+            if (!routePoints.isEmpty()) {
+                routePointRepository.saveAll(routePoints);
+                pointsCount = routePoints.size();
+            }
         }
 
         // 4. Persist checkpoints / stationary stops

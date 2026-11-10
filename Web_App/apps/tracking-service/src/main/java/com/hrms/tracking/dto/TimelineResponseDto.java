@@ -32,6 +32,9 @@ public class TimelineResponseDto {
     private List<TransitItemDto> transits = new ArrayList<>();
 
     @Builder.Default
+    private List<TripMoveDto> trips = new ArrayList<>();
+
+    @Builder.Default
     private List<RoutePointDetailDto> routePoints = new ArrayList<>();
 
     @Builder.Default
@@ -107,6 +110,25 @@ public class TimelineResponseDto {
         private String mode; // DRIVING or WALKING
         private Double distanceKm;
         private String durationText;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class TripMoveDto {
+        private Integer index;
+        private Integer fromStopIndex;
+        private Integer toStopIndex;
+        private String mode; // DRIVING or WALKING
+        private String startTime;
+        private String endTime;
+        private Double distanceKm;
+        private Double averageSpeedKmh;
+        private Long durationMinutes;
+        private String durationText;
+        @Builder.Default
+        private List<List<Double>> snappedPolyline = new ArrayList<>();
     }
 
     @Data

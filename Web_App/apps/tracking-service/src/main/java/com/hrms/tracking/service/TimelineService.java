@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -33,6 +34,7 @@ public class TimelineService {
     private final TimelineStopRepository timelineStopRepository;
     private final ReverseGeocodingService geocodingService;
     private final AsyncTrackingBatchService batchService;
+    private final MapMatchingService mapMatchingService;
 
     private static final ZoneId IST_ZONE = ZoneId.of("Asia/Kolkata");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -65,7 +67,7 @@ public class TimelineService {
         List<TimelineStop> recordedStops = timelineStopRepository
                 .findByUserIdAndArrivalTimeBetweenOrderByArrivalTimeAsc(userId, startOfDay, endOfDay);
 
-        // If no stops recorded yet but route points exist, detect stops algorithmically (stationary <20m for >= 3 mins)
+        // If no stops recorded yet but route points exist, detect stops algorithmically (stationary <= 25m for >= 3 mins)
         if (recordedStops.isEmpty() && !routePoints.isEmpty()) {
             recordedStops = detectStopsFromRoutePoints(userId, routePoints);
         }
@@ -81,14 +83,20 @@ public class TimelineService {
             }
         }
 
-        // 4. Build Route Polyline & Point DTOs
-        List<List<Double>> polyline = new ArrayList<>();
+        // 4. Build Raw Polyline, Calculate Distance, and Filter Points
+        List<List<Double>> rawPolyline = new ArrayList<>();
         List<TimelineResponseDto.RoutePointDetailDto> pointDtos = new ArrayList<>();
         double calculatedDistanceKm = 0.0;
         RoutePoint prevPoint = null;
 
         for (RoutePoint pt : routePoints) {
-            polyline.add(List.of(pt.getLatitude(), pt.getLongitude()));
+            // Drop invalid coordinates if any leaked in
+            if (pt.getLatitude() == null || pt.getLongitude() == null ||
+                (pt.getLatitude() == 0.0 && pt.getLongitude() == 0.0)) {
+                continue;
+            }
+
+            rawPolyline.add(List.of(pt.getLatitude(), pt.getLongitude()));
             pointDtos.add(TimelineResponseDto.RoutePointDetailDto.builder()
                     .pointId(pt.getId())
                     .sessionId(pt.getSession() != null ? pt.getSession().getId() : null)
@@ -112,7 +120,10 @@ public class TimelineService {
             prevPoint = pt;
         }
 
-        // 5. Build TimelineStop DTOs
+        // 5. Server-Side Map-Matching: Snap raw coordinates to exact road network geometry
+        List<List<Double>> snappedRoutePolyline = mapMatchingService.matchToRoads(rawPolyline);
+
+        // 6. Build TimelineStop DTOs
         List<TimelineResponseDto.TimelineStopDto> stopDtos = new ArrayList<>();
         for (int i = 0; i < recordedStops.size(); i++) {
             TimelineStop stop = recordedStops.get(i);
@@ -140,28 +151,87 @@ public class TimelineService {
                     .build());
         }
 
-        // 6. Build Transits between consecutive stops
+        // 7. Timeline State Machine: Segment into Trips / Moves between consecutive stops
+        List<TimelineResponseDto.TripMoveDto> tripDtos = new ArrayList<>();
         List<TimelineResponseDto.TransitItemDto> transitDtos = new ArrayList<>();
-        for (int i = 0; i < stopDtos.size() - 1; i++) {
-            TimelineResponseDto.TimelineStopDto from = stopDtos.get(i);
-            TimelineResponseDto.TimelineStopDto to = stopDtos.get(i + 1);
-            double distKm = GeofenceUtil.calculateHaversineDistance(
-                    from.getLatitude(), from.getLongitude(),
-                    to.getLatitude(), to.getLongitude()
-            ) / 1000.0;
-            distKm = Math.round(distKm * 10.0) / 10.0;
-            long estMins = Math.max(5, Math.round((distKm / 35.0) * 60)); // ~35 km/h driving estimate
+
+        for (int i = 0; i < recordedStops.size() - 1; i++) {
+            TimelineStop fromStop = recordedStops.get(i);
+            TimelineStop toStop = recordedStops.get(i + 1);
+
+            LocalDateTime moveStart = fromStop.getDepartureTime() != null ? fromStop.getDepartureTime() : fromStop.getArrivalTime();
+            LocalDateTime moveEnd = toStop.getArrivalTime() != null ? toStop.getArrivalTime() : toStop.getDepartureTime();
+
+            // Extract points within this transit window
+            List<RoutePoint> movePoints = routePoints.stream()
+                    .filter(p -> (p.getTimestamp().isEqual(moveStart) || p.getTimestamp().isAfter(moveStart)) &&
+                                 (p.getTimestamp().isEqual(moveEnd) || p.getTimestamp().isBefore(moveEnd)))
+                    .collect(Collectors.toList());
+
+            List<List<Double>> moveCoords = new ArrayList<>();
+            double segmentDistKm = 0.0;
+            RoutePoint lastPt = null;
+
+            for (RoutePoint mp : movePoints) {
+                moveCoords.add(List.of(mp.getLatitude(), mp.getLongitude()));
+                if (lastPt != null) {
+                    segmentDistKm += (GeofenceUtil.calculateHaversineDistance(
+                            lastPt.getLatitude(), lastPt.getLongitude(),
+                            mp.getLatitude(), mp.getLongitude()
+                    ) / 1000.0);
+                }
+                lastPt = mp;
+            }
+
+            // Fallback distance directly between stops if intermediate points were sparse
+            if (segmentDistKm < 0.05) {
+                segmentDistKm = GeofenceUtil.calculateHaversineDistance(
+                        fromStop.getLatitude(), fromStop.getLongitude(),
+                        toStop.getLatitude(), toStop.getLongitude()
+                ) / 1000.0;
+            }
+            segmentDistKm = Math.round(segmentDistKm * 100.0) / 100.0;
+
+            long durationSec = (moveStart != null && moveEnd != null)
+                    ? Math.max(60, Duration.between(moveStart, moveEnd).getSeconds())
+                    : 300;
+            long durationMins = Math.max(1, durationSec / 60);
+
+            double avgSpeedKmh = durationSec > 0 ? (segmentDistKm / (durationSec / 3600.0)) : 0.0;
+            avgSpeedKmh = Math.round(avgSpeedKmh * 10.0) / 10.0;
+
+            String mode = (avgSpeedKmh < 6.0 && segmentDistKm < 1.0) ? "WALKING" : "DRIVING";
+            String durationText = durationMins >= 60
+                    ? (durationMins / 60) + " hr " + (durationMins % 60) + " min"
+                    : durationMins + " min";
+
+            // Snap the individual move segment coordinates to road centerlines
+            List<List<Double>> snappedMovePolyline = mapMatchingService.matchToRoads(moveCoords);
+
+            tripDtos.add(TimelineResponseDto.TripMoveDto.builder()
+                    .index(i + 1)
+                    .fromStopIndex(i + 1)
+                    .toStopIndex(i + 2)
+                    .mode(mode)
+                    .startTime(moveStart != null ? moveStart.format(TIME_FMT) : null)
+                    .endTime(moveEnd != null ? moveEnd.format(TIME_FMT) : null)
+                    .distanceKm(segmentDistKm)
+                    .averageSpeedKmh(avgSpeedKmh)
+                    .durationMinutes(durationMins)
+                    .durationText(durationText)
+                    .snappedPolyline(snappedMovePolyline)
+                    .build());
 
             transitDtos.add(TimelineResponseDto.TransitItemDto.builder()
-                    .fromStopIndex(from.getIndex())
-                    .toStopIndex(to.getIndex())
-                    .mode(distKm < 1.0 ? "WALKING" : "DRIVING")
-                    .distanceKm(distKm)
-                    .durationText(estMins + " min")
+                    .fromStopIndex(i + 1)
+                    .toStopIndex(i + 2)
+                    .mode(mode)
+                    .distanceKm(segmentDistKm)
+                    .durationText(durationText)
                     .build());
         }
 
-        // 7. Multi-day Calendar Strip (Preceding 7 days)
+        // 8. Multi-day Calendar Strip (Preceding 7 days)
         List<TimelineResponseDto.DayItem> availableDays = new ArrayList<>();
         LocalDate today = LocalDate.now(IST_ZONE);
         for (int d = 6; d >= 0; d--) {
@@ -176,7 +246,7 @@ public class TimelineService {
                     .build());
         }
 
-        // 8. Trip Summary
+        // 9. Trip Summary
         double totalDist = Math.round(calculatedDistanceKm * 100.0) / 100.0;
         String startTimeStr = !routePoints.isEmpty() ? routePoints.get(0).getTimestamp().format(TIME_FMT) : null;
         String endTimeStr = !routePoints.isEmpty() ? routePoints.get(routePoints.size() - 1).getTimestamp().format(TIME_FMT) : null;
@@ -191,7 +261,7 @@ public class TimelineService {
                 .hasTravelData(!routePoints.isEmpty() || !stopDtos.isEmpty())
                 .build();
 
-        // 9. Latest live telemetry packet for real-time overlay
+        // 10. Latest live telemetry packet
         LiveTelemetryPacket live = batchService.getLatestTelemetry(userId);
 
         return TimelineResponseDto.builder()
@@ -212,15 +282,16 @@ public class TimelineService {
                 .availableDays(availableDays)
                 .stops(stopDtos)
                 .transits(transitDtos)
+                .trips(tripDtos)
                 .routePoints(pointDtos)
-                .routePolyline(polyline)
+                .routePolyline(snappedRoutePolyline)
                 .liveLocation(live)
                 .build();
     }
 
     /**
-     * Algorithmic stationary stop detection from raw route coordinates:
-     * Discovers stops when coordinates remain within 20 meters for 3+ minutes.
+     * Algorithmic stationary stop detection from route coordinates:
+     * Detects stops when displacement remains within a 25-meter radius for >= 3 minutes (180 seconds).
      */
     private List<TimelineStop> detectStopsFromRoutePoints(String userId, List<RoutePoint> points) {
         List<TimelineStop> detected = new ArrayList<>();
@@ -236,13 +307,15 @@ public class TimelineService {
                     pt.getLatitude(), pt.getLongitude()
             );
 
-            if (distMeters <= 20.0) {
+            // Radius threshold: 25 meters
+            if (distMeters <= 25.0) {
                 lastInCluster = pt;
             } else {
-                long stationarySeconds = java.time.Duration.between(
+                long stationarySeconds = Duration.between(
                         clusterStart.getTimestamp(), lastInCluster.getTimestamp()).getSeconds();
 
-                if (stationarySeconds >= 180) { // >= 3 minutes
+                // Dwell threshold: >= 3 minutes (180s)
+                if (stationarySeconds >= 180) {
                     TimelineStop stop = TimelineStop.builder()
                             .id(UUID.randomUUID().toString())
                             .sessionId(clusterStart.getSession() != null ? clusterStart.getSession().getId() : "auto_session")
@@ -251,7 +324,7 @@ public class TimelineService {
                             .departureTime(lastInCluster.getTimestamp())
                             .latitude(clusterStart.getLatitude())
                             .longitude(clusterStart.getLongitude())
-                            .stayDurationMinutes(stationarySeconds / 60)
+                            .stayDurationMinutes(Math.max(1, stationarySeconds / 60))
                             .build();
 
                     detected.add(stop);
@@ -261,7 +334,24 @@ public class TimelineService {
             }
         }
 
-        // Add first and last points as landmark waypoints if no stops detected
+        // Check if final cluster was stationary
+        if (clusterStart != null && lastInCluster != null && clusterStart != lastInCluster) {
+            long finalStaySec = Duration.between(clusterStart.getTimestamp(), lastInCluster.getTimestamp()).getSeconds();
+            if (finalStaySec >= 180) {
+                detected.add(TimelineStop.builder()
+                        .id(UUID.randomUUID().toString())
+                        .sessionId(clusterStart.getSession() != null ? clusterStart.getSession().getId() : "auto_session")
+                        .userId(userId)
+                        .arrivalTime(clusterStart.getTimestamp())
+                        .departureTime(lastInCluster.getTimestamp())
+                        .latitude(clusterStart.getLatitude())
+                        .longitude(clusterStart.getLongitude())
+                        .stayDurationMinutes(Math.max(1, finalStaySec / 60))
+                        .build());
+            }
+        }
+
+        // Add start and end landmarks if no intermediate stops were detected
         if (detected.isEmpty() && !points.isEmpty()) {
             RoutePoint startPt = points.get(0);
             detected.add(TimelineStop.builder()
@@ -293,9 +383,6 @@ public class TimelineService {
         return detected;
     }
 
-    /**
-     * Returns latest known live telemetry for all active field employees
-     */
     public List<EmployeeLiveDto> getLiveEmployees() {
         Collection<LiveTelemetryPacket> telemetryList = batchService.getAllLatestTelemetry();
         List<EmployeeLiveDto> result = new ArrayList<>();

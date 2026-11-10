@@ -5,6 +5,7 @@ import com.hrms.tracking.entity.RoutePoint;
 import com.hrms.tracking.entity.TrackingSession;
 import com.hrms.tracking.repository.RoutePointRepository;
 import com.hrms.tracking.repository.TrackingSessionRepository;
+import com.hrms.tracking.util.GeofenceUtil;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,15 +39,46 @@ public class AsyncTrackingBatchService {
     private final Map<String, LiveTelemetryPacket> latestTelemetryMap = new ConcurrentHashMap<>();
 
     /**
-     * Enqueue a live coordinate ping from WebSocket without blocking the STOMP thread
+     * Enqueue a live coordinate ping from WebSocket without blocking the STOMP thread.
+     * Enforces client+server noise elimination: drops accuracy > 35m, (0.0, 0.0), and speed jumps > 130 km/h.
      */
     public void enqueue(LiveTelemetryPacket packet) {
         if (packet == null || packet.getUserId() == null) return;
+        if (packet.getLatitude() == null || packet.getLongitude() == null) return;
 
-        // 1. Instantly update live in-memory registry
+        // 1. Accuracy Filtering: Immediately drop coordinates where accuracy > 35m or (0.0, 0.0)
+        if (packet.getLatitude() == 0.0 && packet.getLongitude() == 0.0) return;
+        if (packet.getLatitude().isNaN() || packet.getLongitude().isNaN()) return;
+        if (packet.getAccuracy() != null && packet.getAccuracy() > 35.0) {
+            log.debug("Discarding inaccurate coordinate for user {}: accuracy {}m > 35m", packet.getUserId(), packet.getAccuracy());
+            return;
+        }
+
+        // 2. Speed Jump Check against last known telemetry
+        LiveTelemetryPacket prev = latestTelemetryMap.get(packet.getUserId());
+        if (prev != null && prev.getLatitude() != null && prev.getLongitude() != null) {
+            LocalDateTime prevTs = parseTimestamp(prev.getTimestamp());
+            LocalDateTime currTs = parseTimestamp(packet.getTimestamp());
+            if (prevTs != null && currTs != null && !currTs.isBefore(prevTs)) {
+                long millis = java.time.Duration.between(prevTs, currTs).toMillis();
+                double dtSec = Math.max(millis / 1000.0, 0.1);
+                double distMeters = GeofenceUtil.calculateHaversineDistance(
+                        prev.getLatitude(), prev.getLongitude(),
+                        packet.getLatitude(), packet.getLongitude()
+                );
+                double calculatedSpeedKmh = (distMeters / dtSec) * 3.6;
+                if (calculatedSpeedKmh > 130.0) {
+                    log.warn("Discarding GPS speed jump anomaly for user {}: calculated speed {} km/h > 130 km/h",
+                            packet.getUserId(), String.format("%.1f", calculatedSpeedKmh));
+                    return;
+                }
+            }
+        }
+
+        // 3. Instantly update live in-memory registry
         latestTelemetryMap.put(packet.getUserId(), packet);
 
-        // 2. Push to asynchronous DB buffer
+        // 4. Push to asynchronous DB buffer
         incomingQueue.offer(packet);
     }
 
