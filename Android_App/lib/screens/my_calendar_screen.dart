@@ -709,6 +709,9 @@ class _MyCalendarScreenState extends State<MyCalendarScreen> {
       workHoursStr = '8 hrs 32 mins';
     }
 
+    final officeLoc = widget.userData['employee']?['officeLocation'] as Map<String, dynamic>? ?? widget.userData['office'] as Map<String, dynamic>?;
+    final locName = officeLoc?['name']?.toString() ?? widget.userData['company']?['name']?.toString() ?? 'Assigned Workplace';
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -791,9 +794,6 @@ class _MyCalendarScreenState extends State<MyCalendarScreen> {
               ),
               const SizedBox(height: 12),
             ],
-
-            final officeLoc = widget.userData['employee']?['officeLocation'] as Map<String, dynamic>? ?? widget.userData['office'] as Map<String, dynamic>?;
-            final locName = officeLoc?['name']?.toString() ?? widget.userData['company']?['name']?.toString() ?? 'Assigned Workplace';
 
             _buildDetailRow('First Punch In', punchInStr),
             _buildDetailRow('Last Punch Out', punchOutStr),

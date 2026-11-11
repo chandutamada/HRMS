@@ -12,7 +12,6 @@ import '../widgets/app_drawer.dart';
 import '../widgets/face_capture_dialog.dart';
 import 'my_calendar_screen.dart';
 import 'leave_attendance_hub_screen.dart';
-import 'field_duty_screen.dart';
 import 'profile_screen.dart';
 import 'attendance_regularisation_screen.dart';
 import 'leave_tab.dart';
